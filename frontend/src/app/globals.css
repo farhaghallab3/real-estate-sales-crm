@@ -1,0 +1,41 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html {
+    background: #F4F3EE;
+    color: #463F3A;
+    -webkit-font-smoothing: antialiased;
+    font-feature-settings: "cv11", "ss01";
+  }
+  body {
+    @apply bg-canvas text-ink text-sm;
+  }
+  h1, h2, h3 {
+    @apply tracking-tight;
+  }
+  :focus-visible {
+    @apply outline-none ring-2 ring-brand/40 ring-offset-1 ring-offset-canvas;
+  }
+  ::selection {
+    background: #E0AFA0;
+  }
+  input[type="datetime-local"], input[type="date"] {
+    min-height: 2.25rem;
+  }
+  .tabular {
+    font-variant-numeric: tabular-nums;
+  }
+}
+
+@layer utilities {
+  .scrollbar-thin::-webkit-scrollbar {
+    height: 8px;
+    width: 8px;
+  }
+  .scrollbar-thin::-webkit-scrollbar-thumb {
+    background: #BCB8B1;
+    border-radius: 8px;
+  }
+}

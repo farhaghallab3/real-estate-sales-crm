@@ -1,0 +1,18 @@
+# Production-style stack:  docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
+# Set DJANGO_DEBUG=false, a strong DJANGO_SECRET_KEY and SEED_DEMO_DATA=false in .env.
+services:
+  backend:
+    build:
+      context: ./backend
+      target: prod
+    volumes: !override
+      - media_data:/app/media
+    ports: !override []   # only reachable through the frontend proxy
+
+  frontend:
+    build:
+      context: ./frontend
+      target: prod
+      args:
+        BACKEND_INTERNAL_URL: ${BACKEND_INTERNAL_URL:-http://backend:8000}
+    volumes: !override []
