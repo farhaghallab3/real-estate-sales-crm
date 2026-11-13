@@ -1,90 +1,185 @@
-# Keystone — Real Estate Sales CRM
+# Keystone
+### Real Estate Sales CRM
 
-Internal sales workspace for a real-estate company: leads and clients, property inventory, lead–property
-matching, follow-up tasks, viewings, a deal pipeline, offers, commissions, documents, analytics and
-notifications. It is an internal tool for salespeople, managers and admins — not a public marketplace.
+A full-stack internal sales management platform designed to streamline real estate operations — from capturing leads and matching properties to scheduling viewings, managing deals, and tracking commissions.
 
-| Layer    | Stack |
-|----------|-------|
-| Frontend | Next.js 15 (App Router), TypeScript (strict), Tailwind CSS, React Hook Form, TanStack Query |
-| Backend  | Python, Django 5, Django REST Framework, django-filter, SimpleJWT |
+Built with **Next.js, TypeScript, Django REST Framework, and PostgreSQL**, with an emphasis on modular architecture, role-based access control, and practical business workflows.
+
+**Project Type:** Full-Stack Web Application  
+**Status:** Portfolio Project — Development and deployment setup documented
+
+---
+
+## 01 / Overview
+
+Real estate sales teams often manage customer information, property inventory, appointments, and deals across disconnected tools.
+
+Keystone brings these workflows together in one internal workspace for salespeople, managers, and administrators.
+
+The platform follows a connected sales lifecycle:
+
+**Lead → Property Matching → Follow-up → Viewing → Offer → Deal → Commission**
+
+Keystone is designed as an internal CRM, not a public property marketplace.
+
+## 02 / Key Features
+
+**Lead & Client Management**
+
+Manage leads, track their status, assign salespeople, maintain notes, and review activity timelines.
+
+**Property Management**
+
+Maintain an internal property inventory, manage property information and images, and associate properties with interested leads.
+
+**Sales Pipeline**
+
+Track opportunities across stages including Interested, Viewing, Offer Made, Negotiation, Under Contract, Closed, and Lost.
+
+**Tasks & Follow-ups**
+
+Organize upcoming, overdue, and completed tasks, with follow-up workflows connected to sales activities.
+
+**Viewing Management**
+
+Schedule property viewings, identify scheduling conflicts, record feedback, and manage follow-up actions.
+
+**Deals & Commissions**
+
+Manage offers, deal progress, transaction documents, and commission calculations with approval workflows.
+
+**Analytics & Notifications**
+
+Provide role-aware dashboards, filtered sales reports, and in-app notifications.
+
+**Role-Based Access Control**
+
+Support three user roles:
+
+| Role | Access |
+|---|---|
+| Salesperson | Assigned leads, tasks, viewings, deals, and personal performance |
+| Manager | Team-wide sales operations, assignments, commissions, and analytics |
+| Admin | User management, permissions, and administrative operations |
+
+Data access restrictions are enforced by the backend API.
+
+## 03 / Technology Stack
+
+| Layer | Technologies |
+|---|---|
+| Frontend | Next.js 15, React, TypeScript, Tailwind CSS |
+| Data Fetching | TanStack Query |
+| Forms | React Hook Form |
+| Backend | Python, Django 5, Django REST Framework |
+| Authentication | JWT / SimpleJWT |
 | Database | PostgreSQL |
-| Infra    | Docker / Docker Compose for local development; Vercel + Neon + a container host for production |
+| Development | Docker, Docker Compose |
+| Deployment Architecture | Vercel, Neon PostgreSQL, containerized Django |
 
+## 04 / System Architecture
+
+The application separates frontend presentation, API business logic, and data persistence.
+
+```text
+Next.js Frontend
+       |
+       | HTTP / REST
+       v
+Django REST Framework
+       |
+       | Business Logic
+       v
+Domain Services & Permissions
+       |
+       v
+PostgreSQL Database
 ```
-backend/    Django project, one app per domain (users, leads, properties, tasks, viewings, deals,
-            commissions, documents, notifications, analytics) plus core (activity log, permissions)
-frontend/   Next.js app (src/app routes, src/components, src/lib API client and queries)
-docs/       ARCHITECTURE.md (design), DEPLOYMENT.md (production setup)
+
+The backend is organized into domain-specific Django applications, including leads, properties, tasks, viewings, deals, commissions, documents, notifications, and analytics.
+
+Business rules are implemented in backend services rather than duplicated in frontend components.
+
+The frontend uses reusable UI components, typed API integrations, and domain-specific features.
+
+For further technical details, see [Architecture Documentation](docs/ARCHITECTURE.md).
+
+## 05 / Project Structure
+
+```text
+real-estate-sales-crm/
+├── backend/                 # Django REST API
+├── frontend/                # Next.js application
+├── docs/
+│   ├── ARCHITECTURE.md
+│   └── DEPLOYMENT.md
+├── docker-compose.yml
+├── docker-compose.prod.yml
+├── .env.example
+└── README.md
 ```
 
-## Local development
+## 06 / Running Locally
 
-Requirements: Docker with Compose.
+**Prerequisite:** Docker with Docker Compose.
+
+Clone the repository:
 
 ```bash
-cp .env.example .env     # set the passwords and secret key
+git clone https://github.com/farhaghallab3/real-estate-sales-crm.git
+cd real-estate-sales-crm
+```
+
+Create the environment configuration:
+
+```bash
+cp .env.example .env
+```
+
+Update the required environment variables with local development values.
+
+Start the application:
+
+```bash
 docker compose up --build
 ```
 
-| Service  | URL |
-|----------|-----|
-| App      | http://localhost:3000 |
-| API      | http://localhost:8000/api/ |
-| Admin    | http://localhost:8000/django-admin/ |
+Local services:
 
-On first start the backend runs migrations and, when `SEED_DEMO_DATA=true` (development only), loads demo data:
-users, properties, leads at every funnel stage, viewings, offers, deals, commissions and documents.
+| Service | Address |
+|---|---|
+| Frontend | http://localhost:3000 |
+| Backend API | http://localhost:8000/api/ |
+| Django Admin | http://localhost:8000/django-admin/ |
 
-Demo accounts (password is `DEMO_PASSWORD` from your `.env`):
+For local development, demo data can be enabled using `SEED_DEMO_DATA=true`.
 
-| Email | Role |
-|-------|------|
-| `admin@crm.local` | Admin |
-| `manager@crm.local` | Manager |
-| `sofia@crm.local`, `marcus@crm.local`, `priya@crm.local`, `tom@crm.local` | Salesperson |
+Demo credentials are configured through the environment, not hardcoded in this README.
 
-Useful commands:
+## 07 / Engineering Considerations
 
-```bash
-docker compose exec backend python manage.py seed_demo --force   # re-seed (development only)
-docker compose exec backend python manage.py notify_overdue_tasks
-docker compose exec frontend npm run typecheck
-docker compose down -v                                            # stop and delete all local data
-```
+- **Modular architecture:** Backend responsibilities are separated by business domain.
+- **API-level permissions:** Access restrictions are applied server-side.
+- **Business logic isolation:** Domain services handle business rules and workflows.
+- **Typed frontend:** TypeScript supports consistent frontend integration.
+- **Containerized development:** Docker Compose provides a reproducible local setup.
+- **Extensible integrations:** The architecture provides extension points for additional notification channels and background processing.
 
-## Production
+**Authentication note:** The current implementation uses JWT access and refresh tokens stored in browser `localStorage`. A stricter production security model would use appropriately configured `httpOnly` cookies.
 
-Frontend on Vercel, PostgreSQL on Neon, Django as a container on any host, uploads in an S3-compatible bucket.
-Step-by-step setup and the full environment variable list are in [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md).
+## 08 / Documentation
 
-Key points:
+- [Architecture](docs/ARCHITECTURE.md)
+- [Deployment Guide](docs/DEPLOYMENT.md)
 
-- Django reads `DATABASE_URL`, `DJANGO_SECRET_KEY`, `DJANGO_ALLOWED_HOSTS`, `DJANGO_CORS_ALLOWED_ORIGINS` and
-  `DJANGO_CSRF_TRUSTED_ORIGINS` from the environment and refuses to start in production without them.
-- The frontend reads the API location from `NEXT_PUBLIC_API_URL`.
-- No secrets are stored in the repository; `.env.example` files contain placeholders only.
+The repository includes deployment configuration and documentation. Public demo availability and backend connectivity should be verified independently.
 
-## Roles
+---
 
-| Capability | Salesperson | Manager | Admin |
-|---|:-:|:-:|:-:|
-| Own leads, tasks, viewings, deals | ✓ | ✓ (all) | ✓ (all) |
-| Reassign leads and tasks | | ✓ | ✓ |
-| Approve / pay commissions | | ✓ | ✓ |
-| Team analytics | own only | ✓ | ✓ |
-| Manage users and roles | | | ✓ |
+### Built for practical business workflows
 
-Data scoping is enforced in the API, not only in the UI.
+Keystone demonstrates full-stack application development across frontend interfaces, REST APIs, database-backed workflows, role-based permissions, and deployment architecture.
 
-## Extending
+**Developed by [Farha Ghallab](https://github.com/farhaghallab3)**
 
-- **Background jobs** — add Redis and a Celery worker (service stub in `docker-compose.yml`); move
-  `notifications.services.notify_overdue_tasks` to a scheduled task.
-- **Email / SMS** — implement `notifications.channels.BaseChannel` and register it in `NOTIFICATION_CHANNELS`.
-- **Post-viewing follow-up** — implemented in `viewings.services.complete_viewing` (`VIEWING_AUTO_FOLLOWUP`).
-
-## Notes
-
-- API authentication uses JWT access/refresh tokens stored in `localStorage`. For a stricter deployment, move to
-  httpOnly cookies.
+[Portfolio](https://farhaportofolio.vercel.app) · [LinkedIn](https://eg.linkedin.com/in/farhaghallab)
