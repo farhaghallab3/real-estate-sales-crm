@@ -22,7 +22,27 @@ The platform follows a connected sales lifecycle:
 
 Keystone is designed as an internal CRM, not a public property marketplace.
 
-## 02 / Key Features
+## 02 / Product Screenshots
+
+A look at Keystone's application interface, including its dashboard, property inventory, lead management, and sales pipeline.
+
+**Dashboard**
+
+![Keystone dashboard showing sales KPIs, today's tasks, upcoming viewings, and the sales pipeline summary](docs/screenshots/dashboard.png)
+
+**Property Inventory**
+
+![Keystone property inventory with filters for status, location, type, beds, price, and salesperson](docs/screenshots/properties.png)
+
+**Leads & Clients**
+
+![Keystone leads and clients view with status tabs, search, and source, salesperson, and location filters](docs/screenshots/leads.png)
+
+**Sales Pipeline**
+
+![Keystone sales pipeline board with deal stages from Interested to Lost](docs/screenshots/pipeline.png)
+
+## 03 / Key Features
 
 **Lead & Client Management**
 
@@ -64,7 +84,7 @@ Support three user roles:
 
 Data access restrictions are enforced by the backend API.
 
-## 03 / Technology Stack
+## 04 / Technology Stack
 
 | Layer | Technologies |
 |---|---|
@@ -77,7 +97,7 @@ Data access restrictions are enforced by the backend API.
 | Development | Docker, Docker Compose |
 | Deployment Architecture | Vercel, Neon PostgreSQL, containerized Django |
 
-## 04 / System Architecture
+## 05 / System Architecture
 
 The application separates frontend presentation, API business logic, and data persistence.
 
@@ -104,7 +124,7 @@ The frontend uses reusable UI components, typed API integrations, and domain-spe
 
 For further technical details, see [Architecture Documentation](docs/ARCHITECTURE.md).
 
-## 05 / Project Structure
+## 06 / Project Structure
 
 ```text
 real-estate-sales-crm/
@@ -112,14 +132,15 @@ real-estate-sales-crm/
 ├── frontend/                # Next.js application
 ├── docs/
 │   ├── ARCHITECTURE.md
-│   └── DEPLOYMENT.md
+│   ├── DEPLOYMENT.md
+│   └── screenshots/         # Product screenshots used in this README
 ├── docker-compose.yml
 ├── docker-compose.prod.yml
 ├── .env.example
 └── README.md
 ```
 
-## 06 / Running Locally
+## 07 / Running Locally
 
 **Prerequisite:** Docker with Docker Compose.
 
@@ -156,7 +177,7 @@ For local development, demo data can be enabled using `SEED_DEMO_DATA=true`.
 
 Demo credentials are configured through the environment, not hardcoded in this README.
 
-## 07 / Engineering Considerations
+## 08 / Engineering Considerations
 
 - **Modular architecture:** Backend responsibilities are separated by business domain.
 - **API-level permissions:** Access restrictions are applied server-side.
@@ -167,7 +188,7 @@ Demo credentials are configured through the environment, not hardcoded in this R
 
 **Authentication note:** The current implementation uses JWT access and refresh tokens stored in browser `localStorage`. A stricter production security model would use appropriately configured `httpOnly` cookies.
 
-## 08 / Documentation
+## 09 / Documentation
 
 - [Architecture](docs/ARCHITECTURE.md)
 - [Deployment Guide](docs/DEPLOYMENT.md)
