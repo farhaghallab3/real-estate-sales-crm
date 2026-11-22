@@ -15,7 +15,8 @@ import { useToast } from "@/components/ui/toast";
 import { api, ApiError } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import { DEAL_STAGE, PIPELINE_STAGES } from "@/lib/constants";
-import { formatDate, money, moneyCompact } from "@/lib/format";
+import { formatDate } from "@/lib/format";
+import { useMoney } from "@/lib/company";
 import { useApiMutation, usePipeline } from "@/lib/queries";
 import { useUrlState } from "@/lib/use-url-state";
 import type { Deal, DealStage } from "@/types";
@@ -31,6 +32,7 @@ const TONE_BAR: Record<DealStage, string> = {
 };
 
 export default function PipelinePage() {
+  const { money, moneyCompact } = useMoney();
   const { isManager } = useAuth();
   const toast = useToast();
   const router = useRouter();

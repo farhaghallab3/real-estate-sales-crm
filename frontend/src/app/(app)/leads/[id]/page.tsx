@@ -51,7 +51,8 @@ import { useToast } from "@/components/ui/toast";
 import { api, ApiError } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import { LEAD_SOURCE, MATCH_STATUS, optionsOf } from "@/lib/constants";
-import { formatDate, formatDateTime, formatWhen, money, relative } from "@/lib/format";
+import { formatDate, formatDateTime, formatWhen, relative } from "@/lib/format";
+import { useMoney } from "@/lib/company";
 import {
   useApiMutation,
   useDeals,
@@ -70,6 +71,7 @@ type Tab =
   | "overview" | "interested" | "rejected" | "viewings" | "offers" | "tasks" | "notes" | "timeline";
 
 export default function LeadDetailPage() {
+  const { money } = useMoney();
   const params = useParams<{ id: string }>();
   const leadId = Number(params.id);
   const { isManager } = useAuth();
@@ -280,7 +282,7 @@ export default function LeadDetailPage() {
         />
 
         {tab === "overview" && (
-          <div className="grid gap-6 p-4 lg:grid-cols-3">
+          <div className="grid grid-cols-1 gap-6 p-4 lg:grid-cols-3">
             <dl className="grid grid-cols-2 gap-x-6 gap-y-4 lg:col-span-2">
               <Kv label="Lead source">{LEAD_SOURCE[lead.source]}</Kv>
               <Kv label="Budget">{money(lead.budget)}</Kv>

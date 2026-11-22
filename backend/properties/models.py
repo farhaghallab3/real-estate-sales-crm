@@ -1,5 +1,5 @@
 from django.conf import settings
-from django.db import models
+from django.db import connections, models, router
 
 from core.models import TimeStampedModel
 
@@ -38,12 +38,38 @@ class Property(TimeStampedModel):
     class Meta:
         ordering = ["-created_at", "-id"]
         verbose_name_plural = "properties"
+        # No CHECK (reference <> '') on purpose, for now: the previous release inserts reference="" and a code-only rollback would then fail
+        # every creation. See docs/DEFERRED_PROPERTY_REFERENCE_CHECK.md.
+
+    @staticmethod
+    def reference_for(pk: int) -> str:
+        """The reference of a property: PR- and its id, at least five digits (PR-00042, PR-100000). Never changes for an existing row."""
+        return f"PR-{pk:05d}"
+
+    @classmethod
+    def _allocate_pk(cls, using: str | None = None) -> int:
+        """Take the next id from the table's own PostgreSQL sequence: the same sequence, and the same call, the database itself would make
+        for a plain INSERT, so ids handed out here and ids handed out by any other INSERT can never collide."""
+        opts = cls._meta
+        with connections[using or router.db_for_write(cls)].cursor() as cursor:
+            cursor.execute("SELECT nextval(pg_get_serial_sequence(%s, %s))", [opts.db_table, opts.pk.column])
+            value = cursor.fetchone()[0]
+        if value is None:
+            raise RuntimeError(f"{opts.db_table}.{opts.pk.column} has no sequence: cannot allocate a property id")
+        return value
 
     def save(self, *args, **kwargs):
+        # A new property gets its id AND its reference before the INSERT and is written by ONE statement: there is no moment in which a
+        # row exists without its reference, and no second UPDATE. (The old way inserted reference="" and updated it afterwards: two
+        # simultaneous creations collided on the unique index, and a crash in between left an empty reference that failed every later
+        # creation.) An existing property is never given a new reference: only rows that are being inserted are touched here.
+        if self._state.adding and not self.reference:
+            if self.pk is None:
+                self.pk = self._allocate_pk(kwargs.get("using"))
+            self.reference = self.reference_for(self.pk)
+            if not args:
+                kwargs["force_insert"] = True  # we know it is an INSERT: skip Django's UPDATE-then-INSERT probe for an id that is set
         super().save(*args, **kwargs)
-        if not self.reference:
-            self.reference = f"PR-{self.pk:05d}"
-            type(self).objects.filter(pk=self.pk).update(reference=self.reference)
 
     def __str__(self) -> str:
         return self.title

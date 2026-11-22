@@ -84,7 +84,7 @@ export default function TasksPage() {
             count: counts.data?.[t.value],
           }))}
         />
-        <div className="grid gap-2 border-b border-line p-3 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="grid grid-cols-1 gap-2 border-b border-line p-3 sm:grid-cols-2 lg:grid-cols-4">
           <SearchInput value={f.q} onChange={(v) => setF({ q: v })} placeholder="Search tasks, clients, properties…" />
           <Select value={f.type} onChange={(e) => setF({ type: e.target.value })} aria-label="Task type">
             <option value="">All types</option>

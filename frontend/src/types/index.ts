@@ -13,6 +13,8 @@ export interface User extends UserMini {
   phone: string;
   job_title: string;
   commission_split?: string;
+  /** True while the account still uses a temporary password: the API refuses everything but changing it. */
+  must_change_password?: boolean;
   is_active?: boolean;
   date_joined?: string;
 }
@@ -267,11 +269,13 @@ export interface Commission {
   lead_id: number;
   salesperson: UserMini | null;
   sale_price: string;
-  commission_rate: string;
-  gross_commission: string;
-  agent_split: string;
-  agent_commission: string;
-  deductions: string;
+  // The server only sends the fields the signed-in role may see (see docs/PERMISSIONS.md):
+  //   admin: all; manager: net_commission only; salesperson: net_commission + own agent_split.
+  commission_rate?: string;
+  gross_commission?: string;
+  agent_split?: string;
+  agent_commission?: string;
+  deductions?: string;
   net_commission: string;
   status: CommissionStatus;
   approved_at: string | null;

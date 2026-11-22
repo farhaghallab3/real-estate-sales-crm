@@ -3,7 +3,7 @@ from rest_framework import mixins, viewsets
 from rest_framework.decorators import action
 from rest_framework.response import Response
 
-from core.permissions import IsManagerOrAdmin, scope_to_user
+from core.permissions import IsAdminRole, scope_to_user
 
 from . import services
 from .models import Commission
@@ -26,18 +26,20 @@ class CommissionViewSet(mixins.ListModelMixin, mixins.RetrieveModelMixin, viewse
         totals = {}
         for status in Commission.Status.values:
             agg = qs.filter(status=status).aggregate(net=Sum("net_commission"), gross=Sum("gross_commission"))
-            totals[status] = {"net": agg["net"] or 0, "gross": agg["gross"] or 0}
+            totals[status] = {"net": agg["net"] or 0}
+            if self.request.user.role == "admin":  # gross is Admin-only data
+                totals[status]["gross"] = agg["gross"] or 0
         return Response(totals)
 
-    @action(detail=True, methods=["post"], permission_classes=[IsManagerOrAdmin])
+    @action(detail=True, methods=["post"], permission_classes=[IsAdminRole])
     def approve(self, request, pk=None):
         return Response(self.get_serializer(services.approve(self.get_object(), request.user)).data)
 
-    @action(detail=True, methods=["post"], url_path="mark-paid", permission_classes=[IsManagerOrAdmin])
+    @action(detail=True, methods=["post"], url_path="mark-paid", permission_classes=[IsAdminRole])
     def mark_paid(self, request, pk=None):
         return Response(self.get_serializer(services.mark_paid(self.get_object(), request.user)).data)
 
-    @action(detail=True, methods=["patch"], url_path="terms", permission_classes=[IsManagerOrAdmin])
+    @action(detail=True, methods=["patch"], url_path="terms", permission_classes=[IsAdminRole])
     def terms(self, request, pk=None):
         serializer = CommissionTermsSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)

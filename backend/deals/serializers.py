@@ -4,8 +4,7 @@ from leads.models import Lead
 from leads.serializers import LeadMiniSerializer
 from properties.models import Property
 from properties.serializers import PropertyMiniSerializer
-from users.models import User
-from users.serializers import UserMiniSerializer
+from users.serializers import AssignableUserField, UserMiniSerializer
 
 from .models import Deal, Offer
 
@@ -18,9 +17,7 @@ class DealSerializer(serializers.ModelSerializer):
     property_id = serializers.PrimaryKeyRelatedField(
         queryset=Property.objects.all(), source="property", write_only=True
     )
-    assigned_to_id = serializers.PrimaryKeyRelatedField(
-        queryset=User.objects.filter(is_active=True), source="assigned_to", write_only=True, required=False
-    )
+    assigned_to_id = AssignableUserField(source="assigned_to", write_only=True, required=False)
     stage_label = serializers.CharField(source="get_stage_display", read_only=True)
 
     class Meta:
@@ -31,6 +28,10 @@ class DealSerializer(serializers.ModelSerializer):
             "notes", "created_at", "updated_at",
         ]
         read_only_fields = ["id", "stage", "sale_price", "closed_at", "lost_reason", "created_at", "updated_at"]
+        # The model's conditional UniqueConstraint (one OPEN deal per lead+property) makes DRF add a validator that reads
+        # `stage`, which is read-only here, so every PATCH/PUT crashed with KeyError('stage') (HTTP 500). The rule is
+        # enforced explicitly by DealViewSet.perform_create / perform_update (and by the database constraint).
+        validators: list = []
 
     def validate_offer_amount(self, value):
         if value is not None and value <= 0:
@@ -52,7 +53,7 @@ class DealDetailSerializer(DealSerializer):
         from commissions.serializers import CommissionSerializer
 
         commission = getattr(obj, "commission", None)
-        return CommissionSerializer(commission).data if commission else None
+        return CommissionSerializer(commission, context=self.context).data if commission else None
 
 
 class MoveStageSerializer(serializers.Serializer):

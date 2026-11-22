@@ -27,7 +27,8 @@ import {
 import { useToast } from "@/components/ui/toast";
 import { api, ApiError } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
-import { formatDate, money2 } from "@/lib/format";
+import { formatDate } from "@/lib/format";
+import { useCompany, useMoney } from "@/lib/company";
 import { useApiMutation, useCommissions, useCommissionSummary } from "@/lib/queries";
 import { useUrlState } from "@/lib/use-url-state";
 import type { Commission } from "@/types";
@@ -36,6 +37,7 @@ const PAGE_SIZE = 20;
 
 function TermsModal({ commission, onClose }: { commission: Commission | null; onClose: () => void }) {
   const toast = useToast();
+  const { currency_code } = useCompany();
   const [error, setError] = useState<string | null>(null);
   const { register, handleSubmit, reset } = useForm<{
     commission_rate: string;
@@ -46,9 +48,9 @@ function TermsModal({ commission, onClose }: { commission: Commission | null; on
     if (commission) {
       setError(null);
       reset({
-        commission_rate: commission.commission_rate,
-        agent_split: commission.agent_split,
-        deductions: commission.deductions,
+        commission_rate: commission.commission_rate ?? "",
+        agent_split: commission.agent_split ?? "",
+        deductions: commission.deductions ?? "",
       });
     }
   }, [commission, reset]);
@@ -91,7 +93,7 @@ function TermsModal({ commission, onClose }: { commission: Commission | null; on
         <Field label="Agent split (% of gross)">
           <Input type="number" step="0.01" min={0} max={100} {...register("agent_split")} />
         </Field>
-        <Field label="Deductions (USD)">
+        <Field label={`Deductions (${currency_code})`}>
           <Input type="number" step="0.01" min={0} {...register("deductions")} />
         </Field>
         <p className="text-xs text-muted">Amounts are calculated and stored by the server.</p>
@@ -101,7 +103,9 @@ function TermsModal({ commission, onClose }: { commission: Commission | null; on
 }
 
 export default function CommissionsPage() {
-  const { isManager } = useAuth();
+  const { money2 } = useMoney();
+  const { isManager, isAdmin } = useAuth();
+  const showSplit = isAdmin || !isManager; // admins and salespeople (their own); never managers
   const toast = useToast();
   const [f, setF] = useUrlState({ status: "", assigned: "", page: "1" });
   const [editing, setEditing] = useState<Commission | null>(null);
@@ -125,16 +129,29 @@ export default function CommissionsPage() {
     <div>
       <PageHeader
         title="Commissions"
-        description={isManager ? "Team commissions — approve and pay out." : "Your commissions from closed deals."}
+        description={
+          isAdmin
+            ? "Team commissions — approve and pay out."
+            : isManager
+              ? "Team commissions — status and net value."
+              : "Your commissions from closed deals."
+        }
       />
       <div className="mb-4 grid grid-cols-2 gap-3 lg:grid-cols-4">
         <Metric label="Pending (net)" value={money2(s?.pending.net ?? 0)} />
         <Metric label="Approved (net)" value={money2(s?.approved.net ?? 0)} />
         <Metric label="Paid (net)" value={money2(s?.paid.net ?? 0)} accent />
-        <Metric
-          label="Total gross"
-          value={money2(Number(s?.pending.gross ?? 0) + Number(s?.approved.gross ?? 0) + Number(s?.paid.gross ?? 0))}
-        />
+        {isAdmin ? (
+          <Metric
+            label="Total gross"
+            value={money2(Number(s?.pending.gross ?? 0) + Number(s?.approved.gross ?? 0) + Number(s?.paid.gross ?? 0))}
+          />
+        ) : (
+          <Metric
+            label="Total (net)"
+            value={money2(Number(s?.pending.net ?? 0) + Number(s?.approved.net ?? 0) + Number(s?.paid.net ?? 0))}
+          />
+        )}
       </div>
 
       <Card padded={false}>
@@ -173,15 +190,15 @@ export default function CommissionsPage() {
                   <Th>Client</Th>
                   {isManager && <Th>Salesperson</Th>}
                   <Th className="text-right">Sale price</Th>
-                  <Th className="text-right">Rate</Th>
-                  <Th className="text-right">Gross</Th>
-                  <Th className="text-right">Split</Th>
-                  <Th className="text-right">Agent</Th>
-                  <Th className="text-right">Deductions</Th>
+                  {isAdmin && <Th className="text-right">Rate</Th>}
+                  {isAdmin && <Th className="text-right">Gross</Th>}
+                  {showSplit && <Th className="text-right">Split</Th>}
+                  {isAdmin && <Th className="text-right">Agent</Th>}
+                  {isAdmin && <Th className="text-right">Deductions</Th>}
                   <Th className="text-right">Net</Th>
                   <Th>Status</Th>
                   <Th>Closed</Th>
-                  {isManager && <Th />}
+                  {isAdmin && <Th />}
                 </tr>
               </thead>
               <tbody>
@@ -203,17 +220,17 @@ export default function CommissionsPage() {
                       </Td>
                     )}
                     <Td className="tabular text-right">{money2(c.sale_price)}</Td>
-                    <Td className="tabular text-right">{Number(c.commission_rate)}%</Td>
-                    <Td className="tabular text-right">{money2(c.gross_commission)}</Td>
-                    <Td className="tabular text-right">{Number(c.agent_split)}%</Td>
-                    <Td className="tabular text-right">{money2(c.agent_commission)}</Td>
-                    <Td className="tabular text-right">{money2(c.deductions)}</Td>
+                    {isAdmin && <Td className="tabular text-right">{Number(c.commission_rate)}%</Td>}
+                    {isAdmin && <Td className="tabular text-right">{money2(c.gross_commission)}</Td>}
+                    {showSplit && <Td className="tabular text-right">{Number(c.agent_split)}%</Td>}
+                    {isAdmin && <Td className="tabular text-right">{money2(c.agent_commission)}</Td>}
+                    {isAdmin && <Td className="tabular text-right">{money2(c.deductions)}</Td>}
                     <Td className="tabular text-right font-semibold">{money2(c.net_commission)}</Td>
                     <Td>
                       <CommissionStatusBadge status={c.status} />
                     </Td>
                     <Td className="whitespace-nowrap text-muted">{formatDate(c.created_at)}</Td>
-                    {isManager && (
+                    {isAdmin && (
                       <Td>
                         <div className="flex justify-end gap-1.5">
                           {c.status !== "paid" && (

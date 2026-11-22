@@ -12,7 +12,7 @@ class Commission(TimeStampedModel):
         APPROVED = "approved", "Approved"
         PAID = "paid", "Paid"
 
-    deal = models.OneToOneField("deals.Deal", on_delete=models.CASCADE, related_name="commission")
+    deal = models.OneToOneField("deals.Deal", on_delete=models.PROTECT, related_name="commission")
     salesperson = models.ForeignKey(
         settings.AUTH_USER_MODEL, null=True, on_delete=models.SET_NULL, related_name="commissions"
     )

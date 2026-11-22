@@ -6,7 +6,7 @@ import { ChevronDown, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
 import { api } from "@/lib/api";
-import { money } from "@/lib/format";
+import { useMoney } from "@/lib/company";
 import { useUsers } from "@/lib/queries";
 import type { Lead, LeadMini, Paginated, Property, PropertyMini } from "@/types";
 
@@ -186,6 +186,7 @@ export function PropertyPicker({
   invalid?: boolean;
   placeholder?: string;
 }) {
+  const { money } = useMoney();
   return (
     <Combobox<Property>
       queryKey="property"
@@ -226,6 +227,10 @@ export function UserSelect({
       {...rest}
     >
       {allowEmpty && <option value="">{emptyLabel}</option>}
+      {/* A record can still be assigned to a provider (technical) account, which is never listed: keep it visible. */}
+      {value !== "" && value != null && !list.some((u) => u.id === Number(value)) && (
+        <option value={value}>Provider account</option>
+      )}
       {list.map((u) => (
         <option key={u.id} value={u.id}>
           {u.full_name}

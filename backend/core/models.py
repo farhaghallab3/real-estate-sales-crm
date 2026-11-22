@@ -53,3 +53,48 @@ class Activity(models.Model):
 
     def __str__(self) -> str:
         return f"{self.kind}: {self.message}"
+
+
+class CompanySettings(models.Model):
+    """The single row that describes this deployment's company: branding, base currency and formatting locale.
+
+    Defaults reproduce the interface exactly as it was before this model existed. The base currency is locked once any financial
+    data exists (see core.company.financial_data_exists): changing it would silently change what every stored amount means.
+    """
+
+    company_name = models.CharField(max_length=120, default="Keystone")
+    workspace_label = models.CharField(max_length=60, default="Sales workspace")
+    currency_code = models.CharField(max_length=3, default="USD")
+    locale = models.CharField(max_length=10, default="en-US")
+    language = models.CharField(max_length=5, default="en")
+    logo = models.FileField(upload_to="company/", blank=True, default="")
+    logo_content_type = models.CharField(max_length=20, blank=True, default="")
+    logo_version = models.PositiveIntegerField(default=0)
+    defaults_applied_at = models.DateTimeField(null=True, blank=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    updated_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL, related_name="+"
+    )
+
+    class Meta:
+        verbose_name_plural = "company settings"
+        constraints = [models.CheckConstraint(condition=models.Q(pk=1), name="company_settings_singleton")]
+
+    @classmethod
+    def load(cls) -> "CompanySettings":
+        obj, _ = cls.objects.get_or_create(pk=1)
+        return obj
+
+    def save(self, *args, allow_currency_change: bool = False, **kwargs):
+        """allow_currency_change is reserved for a future, separate financial migration; nothing else may pass it."""
+        from .company import CurrencyLocked, financial_data_exists
+
+        self.pk = 1
+        if not self._state.adding and not allow_currency_change:
+            stored = CompanySettings.objects.filter(pk=1).values_list("currency_code", flat=True).first()
+            if stored and stored != self.currency_code and financial_data_exists():
+                raise CurrencyLocked("The base currency cannot change once financial data exists.")
+        super().save(*args, **kwargs)
+
+    def __str__(self) -> str:
+        return self.company_name

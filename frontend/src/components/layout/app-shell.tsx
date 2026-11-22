@@ -24,7 +24,9 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 
+import { BrandMark } from "@/components/ui/brand";
 import { useAuth } from "@/lib/auth";
+import { useCompany } from "@/lib/company";
 import { ROLE_LABEL } from "@/lib/constants";
 import { useUnreadCount } from "@/lib/queries";
 
@@ -48,15 +50,14 @@ const NAV = [
 const COLLAPSE_KEY = "crm.sidebar.collapsed";
 
 function Brand({ collapsed }: { collapsed: boolean }) {
+  const { company_name, workspace_label } = useCompany();
   return (
     <Link href="/dashboard" className="flex h-14 shrink-0 items-center gap-2.5 px-4">
-      <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-sidebar-active">
-        <Building2 className="h-[18px] w-[18px] text-accent" />
-      </span>
+      <BrandMark className="h-8 w-8 rounded-lg bg-sidebar-active" iconClassName="h-[18px] w-[18px] text-accent" />
       {!collapsed && (
         <span className="leading-tight">
-          <span className="block text-sm font-semibold tracking-tight text-white">Keystone</span>
-          <span className="block text-2xs text-sidebar-text">Sales workspace</span>
+          <span className="block text-sm font-semibold tracking-tight text-white">{company_name}</span>
+          <span className="block text-2xs text-sidebar-text">{workspace_label}</span>
         </span>
       )}
     </Link>

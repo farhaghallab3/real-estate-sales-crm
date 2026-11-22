@@ -7,14 +7,15 @@ import { AppShell } from "@/components/layout/app-shell";
 import { useAuth } from "@/lib/auth";
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
-  const { status } = useAuth();
+  const { status, user } = useAuth();
   const router = useRouter();
 
   useEffect(() => {
     if (status === "anonymous") router.replace("/login");
   }, [status, router]);
 
-  if (status !== "authenticated") {
+  // A temporary-password account is routed to /change-password by the auth provider; never render the shell for it.
+  if (status !== "authenticated" || user?.must_change_password) {
     return (
       <div className="flex min-h-screen items-center justify-center text-sm text-muted" aria-busy>
         Loading workspace…

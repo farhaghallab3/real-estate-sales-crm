@@ -27,7 +27,8 @@ import {
 } from "@/components/ui/primitives";
 import { useAuth } from "@/lib/auth";
 import { LEAD_SOURCE, LEAD_STATUS, optionsOf } from "@/lib/constants";
-import { formatDate, formatWhen, money, relative } from "@/lib/format";
+import { formatDate, formatWhen, relative } from "@/lib/format";
+import { useMoney } from "@/lib/company";
 import { useLeads, useLeadStatusCounts } from "@/lib/queries";
 import { useUrlState } from "@/lib/use-url-state";
 import type { Lead } from "@/types";
@@ -44,6 +45,7 @@ const DEFAULTS = {
 };
 
 export default function LeadsPage() {
+  const { money } = useMoney();
   const { isManager } = useAuth();
   const [f, setF] = useUrlState(DEFAULTS);
   const [addOpen, setAddOpen] = useState(false);
@@ -78,7 +80,7 @@ export default function LeadsPage() {
       <Card padded={false}>
         <div className="space-y-3 border-b border-line p-3">
           <Pills options={pillOptions} value={f.status} onChange={(v) => setF({ status: v })} />
-          <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-5">
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-5">
             <SearchInput
               value={f.q}
               onChange={(v) => setF({ q: v })}

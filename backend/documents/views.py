@@ -1,3 +1,4 @@
+from django.db import router, transaction
 from django.http import FileResponse
 from rest_framework import mixins, status, viewsets
 from rest_framework.decorators import action
@@ -6,6 +7,10 @@ from rest_framework.response import Response
 
 from core.exceptions import BusinessRuleViolation
 from core.permissions import is_manager, scope_to_user
+
+from deals import services as deal_services
+from deals.models import Deal
+from deals.protection import SALE_RECORD_MESSAGE
 
 from . import services
 from .models import Document
@@ -45,8 +50,18 @@ class DocumentViewSet(
         user = self.request.user
         if not (is_manager(user) or instance.uploaded_by_id == user.id):
             raise BusinessRuleViolation("Only the uploader or a manager can delete this document.")
-        instance.file.delete(save=False)
-        instance.delete()
+        db = router.db_for_write(Document, instance=instance)
+        with transaction.atomic(using=db):
+            deal_services.lock_deal(instance.deal)  # the closing's lock order; the stage below is the current one
+            if instance.deal.stage == Deal.Stage.CLOSED:
+                raise BusinessRuleViolation(SALE_RECORD_MESSAGE)
+            # The row first, inside the transaction; the stored file only after that transaction has committed. A failure (or a rollback)
+            # before the commit therefore never costs the file, and a storage failure after it leaves an orphan file, never a document
+            # whose file is gone.
+            storage, name = instance.file.storage, instance.file.name
+            instance.delete()
+            if name:
+                transaction.on_commit(lambda: services.remove_stored_file(storage, name), using=db, robust=True)
 
     @action(detail=True, methods=["get"])
     def download(self, request, pk=None):

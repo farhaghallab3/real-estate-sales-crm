@@ -1,3 +1,4 @@
+from django.db import transaction
 from django.db.models import Count, Min, Q
 from rest_framework import mixins, status, viewsets
 from rest_framework.decorators import action
@@ -7,6 +8,7 @@ from core.exceptions import BusinessRuleViolation
 from core.models import Activity
 from core.permissions import IsManagerOrAdmin, is_manager, scope_to_user
 from core.serializers import ActivitySerializer
+from deals import protection
 
 from . import services
 from .filters import LeadFilter, LeadPropertyFilter
@@ -41,6 +43,11 @@ class LeadViewSet(viewsets.ModelViewSet):
         if self.action == "destroy":
             permissions.append(IsManagerOrAdmin())
         return permissions
+
+    def perform_destroy(self, instance):
+        with transaction.atomic():
+            protection.refuse_if_sold(protection.lock_sale_records(lead_id=instance.pk))
+            instance.delete()
 
     def perform_create(self, serializer):
         user = self.request.user

@@ -23,7 +23,12 @@ else:
     raise SystemExit("PostgreSQL is not reachable")
 PY
 
-python manage.py migrate --noinput
+# Production sets RUN_MIGRATIONS=false and applies migrations as an explicit, reviewed step.
+if [ "${RUN_MIGRATIONS:-true}" != "false" ]; then
+  python manage.py migrate --noinput
+else
+  echo "RUN_MIGRATIONS=false: skipping automatic migrations."
+fi
 # Dev serves admin static via runserver; collectstatic (slow on bind mounts) is only needed with gunicorn.
 if [ "${DJANGO_DEBUG}" != "true" ]; then
   python manage.py collectstatic --noinput >/dev/null 2>&1 || true
@@ -33,9 +38,12 @@ if [ -n "${DJANGO_SUPERUSER_EMAIL}" ] && [ -n "${DJANGO_SUPERUSER_PASSWORD}" ]; 
   python manage.py shell -c "
 from users.models import User
 import os
-e, p = os.environ['DJANGO_SUPERUSER_EMAIL'], os.environ['DJANGO_SUPERUSER_PASSWORD']
-if not User.objects.filter(email=e).exists():
+e, p = os.environ['DJANGO_SUPERUSER_EMAIL'].strip().lower(), os.environ['DJANGO_SUPERUSER_PASSWORD']
+if User.objects.filter(email__iexact=e).exists():
+    print('Superuser already exists - skipping.')
+else:
     User.objects.create_superuser(e, p, first_name='Admin')
+    print('Superuser created.')
 "
 fi
 

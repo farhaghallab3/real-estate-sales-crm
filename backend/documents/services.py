@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 import os
 
 from django.conf import settings
@@ -9,6 +10,17 @@ from core.models import Activity
 from core.services import log_activity
 
 from .models import Document
+
+logger = logging.getLogger("crm.documents")
+
+
+def remove_stored_file(storage, name: str) -> None:
+    """Delete a document's file from storage. Runs after the database commit; a failure here leaves an orphan file (harmless, and logged with
+    its name so it can be swept), never a document without its file."""
+    try:
+        storage.delete(name)
+    except Exception:  # noqa: BLE001 - the deletion is already committed; the user must not get an error for a leftover file
+        logger.error("Stored file of a deleted document could not be removed (orphan file): %s", name, exc_info=True)
 
 
 def validate_upload(upload) -> None:

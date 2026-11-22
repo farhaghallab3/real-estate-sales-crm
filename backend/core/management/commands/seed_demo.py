@@ -71,10 +71,11 @@ class Command(BaseCommand):
     def handle(self, *args, **options):
         from django.conf import settings
 
-        if not settings.DEBUG and not options["force"]:
-            self.stderr.write("Refusing to seed demo data outside DEBUG mode (use --force to override).")
+        if not (settings.DEBUG or settings.DEMO_MODE):
+            self.stderr.write("Refusing to seed demo data: set DJANGO_DEBUG=true or DEMO_MODE=true.")
             return
         if Lead.objects.exists() and not options["force"]:
+            self._restore_document_files()  # containers with ephemeral disks lose the sample files on redeploy
             self.stdout.write("Demo data already present — skipping.")
             return
         self.rng = random.Random(7)
@@ -94,6 +95,8 @@ class Command(BaseCommand):
 
     # ---- builders -------------------------------------------------------------------------------------
     def _users(self, password: str) -> list[User]:
+        from django.conf import settings
+
         spec = [
             ("admin@crm.local", "Elena", "Marsh", Role.ADMIN, "Operations Director", 0),
             ("manager@crm.local", "Daniel", "Okafor", Role.MANAGER, "Head of Sales", 0),
@@ -108,11 +111,14 @@ class Command(BaseCommand):
                 email=email,
                 defaults=dict(
                     first_name=first, last_name=last, role=role, job_title=title,
-                    phone=f"+1 555 010{len(users)}", is_staff=role == Role.ADMIN,
-                    commission_split=Decimal(split or 50), is_superuser=role == Role.ADMIN,
+                    phone=f"+1 555 010{len(users)}", is_staff=False,
+                    commission_split=Decimal(split or 50), is_superuser=False,
                 ),
             )
-            user.set_password(password)
+            if role == Role.ADMIN and settings.DEMO_MODE:
+                user.set_unusable_password()  # the public demo has no admin login
+            else:
+                user.set_password(password)
             user.save()
             users.append(user)
         return users
@@ -298,6 +304,13 @@ class Command(BaseCommand):
                 file=ContentFile(f"Sample {label} for {deal.lead.name}".encode(), name="sample.txt"),
                 size=48, content_type="text/plain", uploaded_by=owner,
             )
+
+    def _restore_document_files(self) -> None:
+        from django.core.files.storage import default_storage
+
+        for doc in Document.objects.all():
+            if doc.file and not default_storage.exists(doc.file.name):
+                default_storage.save(doc.file.name, ContentFile(f"Sample document: {doc.name}".encode()))
 
     # ---- timestamps & statuses ------------------------------------------------------------------------
     def _finalize(self) -> None:

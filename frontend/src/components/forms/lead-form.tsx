@@ -10,6 +10,7 @@ import { useToast } from "@/components/ui/toast";
 import { api, ApiError } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import { LEAD_SOURCE, optionsOf } from "@/lib/constants";
+import { useCompany } from "@/lib/company";
 import { useApiMutation } from "@/lib/queries";
 import type { Lead, LeadInput } from "@/types";
 
@@ -38,6 +39,7 @@ export function LeadFormModal({
   onSaved?: (lead: Lead) => void;
 }) {
   const { isManager, user } = useAuth();
+  const { currency_code } = useCompany();
   const toast = useToast();
   const [formError, setFormError] = useState<string | null>(null);
   const {
@@ -109,7 +111,7 @@ export function LeadFormModal({
         </>
       }
     >
-      <form onSubmit={onSubmit} className="grid gap-3 sm:grid-cols-2" noValidate>
+      <form onSubmit={onSubmit} className="grid grid-cols-1 gap-3 sm:grid-cols-2" noValidate>
         <div className="sm:col-span-2">
           <FormError message={formError} />
         </div>
@@ -137,7 +139,7 @@ export function LeadFormModal({
             ))}
           </Select>
         </Field>
-        <Field label="Budget (USD)" error={errors.budget?.message}>
+        <Field label={`Budget (${currency_code})`} error={errors.budget?.message}>
           <Input
             type="number"
             min={0}

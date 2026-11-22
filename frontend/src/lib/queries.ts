@@ -122,7 +122,7 @@ export const useCommissions = (params: Params) => useList<Commission>("commissio
 export const useCommissionSummary = () =>
   useQuery({
     queryKey: ["commission-summary"],
-    queryFn: () => api<Record<string, { net: string; gross: string }>>("/commissions/summary/"),
+    queryFn: () => api<Record<string, { net: string; gross?: string }>>("/commissions/summary/"),
   });
 export const useDocuments = (params: Params, enabled = true) =>
   useList<DocumentItem>("documents", "/documents/", params, enabled);

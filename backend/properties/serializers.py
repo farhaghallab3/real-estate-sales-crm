@@ -1,7 +1,6 @@
 from rest_framework import serializers
 
-from users.models import User
-from users.serializers import UserMiniSerializer
+from users.serializers import AssignableUserField, UserMiniSerializer
 
 from .models import Property, PropertyImage
 
@@ -27,8 +26,7 @@ class PropertyMiniSerializer(serializers.ModelSerializer):
 
 class PropertySerializer(serializers.ModelSerializer):
     assigned_to = UserMiniSerializer(read_only=True)
-    assigned_to_id = serializers.PrimaryKeyRelatedField(
-        queryset=User.objects.filter(is_active=True), source="assigned_to", write_only=True, required=False,
+    assigned_to_id = AssignableUserField(source="assigned_to", write_only=True, required=False,
         allow_null=True,
     )
     cover_image = serializers.SerializerMethodField()

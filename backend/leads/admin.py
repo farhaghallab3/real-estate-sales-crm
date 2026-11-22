@@ -1,10 +1,12 @@
 from django.contrib import admin
 
+from deals.protection import ClosedSaleDeleteGuard
+
 from .models import Lead, LeadNote, LeadProperty
 
 
 @admin.register(Lead)
-class LeadAdmin(admin.ModelAdmin):
+class LeadAdmin(ClosedSaleDeleteGuard, admin.ModelAdmin):
     list_display = ("name", "phone", "status", "source", "assigned_to", "created_at")
     list_filter = ("status", "source")
     search_fields = ("first_name", "last_name", "phone", "email")

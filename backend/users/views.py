@@ -1,4 +1,4 @@
-from rest_framework import mixins, status, viewsets
+from rest_framework import mixins, viewsets
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -6,7 +6,7 @@ from rest_framework_simplejwt.views import TokenObtainPairView
 
 from core.permissions import IsAdminRole, is_manager
 
-from .models import User
+from .accounts import company_users
 from .serializers import (
     ChangePasswordSerializer,
     LoginSerializer,
@@ -37,9 +37,13 @@ class ChangePasswordView(APIView):
     def post(self, request):
         serializer = ChangePasswordSerializer(data=request.data, context={"request": request})
         serializer.is_valid(raise_exception=True)
-        request.user.set_password(serializer.validated_data["new_password"])
-        request.user.save(update_fields=["password"])
-        return Response(status=status.HTTP_204_NO_CONTENT)
+        user = request.user
+        user.set_password(serializer.validated_data["new_password"])  # revokes every token issued before now
+        user.must_change_password = False
+        user.save(update_fields=["password", "password_changed_at", "must_change_password"])
+        # the caller's own tokens were just revoked: hand back a fresh pair so the session continues
+        refresh = LoginSerializer.get_token(user)
+        return Response({"access": str(refresh.access_token), "refresh": str(refresh)})
 
 
 class UserViewSet(
@@ -51,7 +55,7 @@ class UserViewSet(
 ):
     """Everyone can list active users (assignee pickers). Only admins can create/modify."""
 
-    queryset = User.objects.all()
+    queryset = company_users()  # technical (staff/superuser) accounts are never part of the company-facing API
     search_fields = ["first_name", "last_name", "email"]
     filterset_fields = ["role", "is_active"]
     pagination_class = None

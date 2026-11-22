@@ -11,6 +11,8 @@
   }
   body {
     @apply bg-canvas text-ink text-sm;
+    /* Arabic compound names, long addresses and URLs have no break opportunities: let them wrap instead of pushing the page sideways. */
+    overflow-wrap: anywhere;
   }
   h1, h2, h3 {
     @apply tracking-tight;

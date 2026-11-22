@@ -19,11 +19,13 @@ import { Card, EmptyState, ErrorState, Kv, PersonChip, Skeleton } from "@/compon
 import { useToast } from "@/components/ui/toast";
 import { api, ApiError, mediaUrl } from "@/lib/api";
 import { PROPERTY_TYPE } from "@/lib/constants";
-import { formatDate, formatDateTime, money } from "@/lib/format";
+import { formatDate, formatDateTime } from "@/lib/format";
+import { useMoney } from "@/lib/company";
 import { useApiMutation, useProperty } from "@/lib/queries";
 import type { Viewing } from "@/types";
 
 export default function PropertyDetailPage() {
+  const { money } = useMoney();
   const params = useParams<{ id: string }>();
   const id = Number(params.id);
   const toast = useToast();
@@ -105,7 +107,7 @@ export default function PropertyDetailPage() {
         </div>
       </Card>
 
-      <div className="grid gap-4 xl:grid-cols-3">
+      <div className="grid grid-cols-1 gap-4 xl:grid-cols-3">
         <div className="space-y-4 xl:col-span-2">
           <Card title={`Interested leads (${p.interested_leads.length})`} padded={false}>
             {p.interested_leads.length === 0 ? (

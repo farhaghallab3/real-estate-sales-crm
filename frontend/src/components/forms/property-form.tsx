@@ -10,6 +10,7 @@ import { useToast } from "@/components/ui/toast";
 import { api, ApiError } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import { optionsOf, PROPERTY_STATUS, PROPERTY_TYPE } from "@/lib/constants";
+import { useCompany } from "@/lib/company";
 import { useApiMutation } from "@/lib/queries";
 import type { Property, PropertyInput } from "@/types";
 
@@ -41,6 +42,7 @@ export function PropertyFormModal({
   onSaved?: (p: Property) => void;
 }) {
   const { isManager, user } = useAuth();
+  const { currency_code } = useCompany();
   const toast = useToast();
   const [formError, setFormError] = useState<string | null>(null);
   const {
@@ -116,7 +118,7 @@ export function PropertyFormModal({
         </>
       }
     >
-      <form onSubmit={onSubmit} className="grid gap-3 sm:grid-cols-6" noValidate>
+      <form onSubmit={onSubmit} className="grid grid-cols-1 gap-3 sm:grid-cols-6" noValidate>
         <div className="sm:col-span-6">
           <FormError message={formError} />
         </div>
@@ -129,7 +131,7 @@ export function PropertyFormModal({
         <Field label="City / location" required className="sm:col-span-2" error={errors.city?.message}>
           <Input {...register("city", { required: "Location is required" })} />
         </Field>
-        <Field label="Price (USD)" required className="sm:col-span-2" error={errors.price?.message}>
+        <Field label={`Price (${currency_code})`} required className="sm:col-span-2" error={errors.price?.message}>
           <Input
             type="number"
             min={1}

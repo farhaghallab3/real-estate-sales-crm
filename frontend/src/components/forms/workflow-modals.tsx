@@ -12,7 +12,8 @@ import { useToast } from "@/components/ui/toast";
 import { api, ApiError } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import { DEAL_STAGE, optionsOf } from "@/lib/constants";
-import { formatDateTime, fromLocalInput, money, toLocalInput } from "@/lib/format";
+import { formatDateTime, toLocalInput } from "@/lib/format";
+import { useCompany, useMoney } from "@/lib/company";
 import { useApiMutation } from "@/lib/queries";
 import type { Deal, DealStage, LeadMini, PropertyMini, Viewing, ViewingConflict } from "@/types";
 
@@ -156,7 +157,7 @@ export function ViewingFormModal({
         </>
       }
     >
-      <form onSubmit={(e) => e.preventDefault()} className="grid gap-3 sm:grid-cols-2" noValidate>
+      <form onSubmit={(e) => e.preventDefault()} className="grid grid-cols-1 gap-3 sm:grid-cols-2" noValidate>
         <div className="sm:col-span-2">
           <FormError message={formError} />
         </div>
@@ -321,6 +322,7 @@ export function OfferFormModal({
   property?: PropertyMini | null;
 }) {
   const toast = useToast();
+  const { currency_code } = useCompany();
   const [lead, setLead] = useState<Ref | null>(null);
   const [property, setProperty] = useState<Ref | null>(null);
   const [missing, setMissing] = useState<{ lead?: boolean; property?: boolean }>({});
@@ -389,7 +391,7 @@ export function OfferFormModal({
         </>
       }
     >
-      <form onSubmit={onSubmit} className="grid gap-3 sm:grid-cols-2" noValidate>
+      <form onSubmit={onSubmit} className="grid grid-cols-1 gap-3 sm:grid-cols-2" noValidate>
         <div className="sm:col-span-2">
           <FormError message={formError} />
         </div>
@@ -409,7 +411,7 @@ export function OfferFormModal({
             onChange={(p) => setProperty(p ? { id: p.id, label: p.title } : null)}
           />
         </Field>
-        <Field label="Offer amount (USD)" required error={errors.amount?.message}>
+        <Field label={`Offer amount (${currency_code})`} required error={errors.amount?.message}>
           <Input
             type="number"
             min={1}
@@ -523,6 +525,8 @@ export function StageChangeModal({
   stage: DealStage | null;
   onClose: () => void;
 }) {
+  const { money } = useMoney();
+  const { currency_code } = useCompany();
   const toast = useToast();
   const [reason, setReason] = useState("");
   const [price, setPrice] = useState("");
@@ -584,7 +588,7 @@ export function StageChangeModal({
           </Field>
         ) : (
           <>
-            <Field label="Final sale price (USD)" required hint={deal?.offer_amount ? `Accepted offer: ${money(deal.offer_amount)}` : undefined}>
+            <Field label={`Final sale price (${currency_code})`} required hint={deal?.offer_amount ? `Accepted offer: ${money(deal.offer_amount)}` : undefined}>
               <Input type="number" min={1} value={price} onChange={(e) => setPrice(e.target.value)} />
             </Field>
             <p className="text-xs text-muted">

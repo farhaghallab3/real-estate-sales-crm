@@ -2,6 +2,8 @@ import builtins
 
 from django.conf import settings
 from django.db import models
+from django.db.models.signals import pre_delete
+from django.dispatch import receiver
 
 from core.models import TimeStampedModel
 
@@ -39,7 +41,10 @@ class Deal(TimeStampedModel):
                 fields=["lead", "property"],
                 condition=~models.Q(stage__in=["closed", "lost"]),
                 name="uniq_open_deal_per_lead_property",
-            )
+            ),
+            # One sale per property, enforced by the database as well as by the locks in deals.services. Closed deals only: any number of
+            # interested, open or lost deals may exist next to (or without) a sale, so the history is untouched.
+            models.UniqueConstraint(fields=["property"], condition=models.Q(stage="closed"), name="uniq_closed_deal_per_property"),
         ]
 
     @builtins.property  # the `property` model field above shadows the builtin in this class body
@@ -71,3 +76,10 @@ class Offer(TimeStampedModel):
 
     class Meta:
         ordering = ["-created_at", "-id"]
+
+
+@receiver(pre_delete, sender=Deal)
+def _refuse_closed_deal_deletion(sender, instance, using, **kwargs):
+    from .protection import refuse_closed_deal_deletion  # imported here: protection imports this module
+
+    refuse_closed_deal_deletion(instance, using)

@@ -96,6 +96,11 @@ export function setUnauthorizedHandler(fn: (() => void) | null) {
   onUnauthorized = fn;
 }
 
+let onPasswordChangeRequired: (() => void) | null = null;
+export function setPasswordChangeHandler(fn: (() => void) | null) {
+  onPasswordChangeRequired = fn;
+}
+
 let refreshing: Promise<string | null> | null = null;
 
 async function refreshAccess(): Promise<string | null> {
@@ -165,6 +170,11 @@ async function request(path: string, opts: RequestOptions = {}): Promise<Respons
       tokens.clear();
       onUnauthorized?.();
     }
+  }
+  if (res.status === 403 && opts.auth !== false && onPasswordChangeRequired) {
+    // The server refuses everything except "change your password" while a temporary password is in use.
+    const body = (await res.clone().json().catch(() => null)) as { code?: string } | null;
+    if (body?.code === "password_change_required") onPasswordChangeRequired();
   }
   return res;
 }

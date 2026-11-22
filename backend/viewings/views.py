@@ -60,6 +60,13 @@ class ViewingViewSet(viewsets.ModelViewSet):
         services.after_viewing_scheduled(viewing, user)
 
     def perform_update(self, serializer):
+        viewing, user, data = serializer.instance, self.request.user, serializer.validated_data
+        if not is_manager(user):
+            if "assigned_to" in data and data["assigned_to"] != viewing.assigned_to:
+                raise BusinessRuleViolation("Only managers can reassign viewings.")
+            lead = data.get("lead")
+            if lead is not None and lead.pk != viewing.lead_id and lead.assigned_to_id != user.id:
+                raise BusinessRuleViolation("You can only link a viewing to your own leads.")
         if serializer.instance.status != Viewing.Status.SCHEDULED:
             raise BusinessRuleViolation("Only scheduled viewings can be rescheduled.")
         self._guard_conflicts(serializer, serializer.instance)

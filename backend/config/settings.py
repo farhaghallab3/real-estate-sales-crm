@@ -21,6 +21,9 @@ def env_list(key: str, default: str = "") -> list[str]:
 
 
 DEBUG = env_bool("DJANGO_DEBUG", False)
+# Public portfolio demo: a separate deployment with disposable data. Blocks uploads, user management and the
+# Django admin, and allows (re)seeding. Never enable on a real instance.
+DEMO_MODE = env_bool("DEMO_MODE", False)
 SECRET_KEY = env("DJANGO_SECRET_KEY")
 if not SECRET_KEY:
     if DEBUG:
@@ -67,6 +70,7 @@ INSTALLED_APPS = [
 ]
 
 MIDDLEWARE = [
+    "core.middleware.RequestLogMiddleware",          # request id + access log (path only, never the query string)
     "django.middleware.security.SecurityMiddleware",
     "whitenoise.middleware.WhiteNoiseMiddleware",
     "corsheaders.middleware.CorsMiddleware",
@@ -77,6 +81,9 @@ MIDDLEWARE = [
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
 ]
+
+if DEMO_MODE:
+    MIDDLEWARE.insert(4, "core.demo.DemoModeMiddleware")
 
 ROOT_URLCONF = "config.urls"
 WSGI_APPLICATION = "config.wsgi.application"
@@ -182,7 +189,7 @@ STORAGES = {
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
 REST_FRAMEWORK = {
-    "DEFAULT_AUTHENTICATION_CLASSES": ["rest_framework_simplejwt.authentication.JWTAuthentication"],
+    "DEFAULT_AUTHENTICATION_CLASSES": ["users.authentication.CRMJWTAuthentication"],
     "DEFAULT_PERMISSION_CLASSES": ["rest_framework.permissions.IsAuthenticated"],
     "DEFAULT_FILTER_BACKENDS": [
         "django_filters.rest_framework.DjangoFilterBackend",
@@ -193,7 +200,10 @@ REST_FRAMEWORK = {
     "PAGE_SIZE": 20,
     "EXCEPTION_HANDLER": "core.exceptions.api_exception_handler",
     "DEFAULT_THROTTLE_CLASSES": ["rest_framework.throttling.ScopedRateThrottle"],
-    "DEFAULT_THROTTLE_RATES": {"login": "20/min"},
+    "DEFAULT_THROTTLE_RATES": {"login": "20/min", "public_config": "120/min"},
+    # Number of trusted reverse proxies in front of Django (nginx = 1). Without it, a client could spoof
+    # X-Forwarded-For to dodge the login throttle. Leave unset on hosts where the proxy chain is unknown.
+    "NUM_PROXIES": int(env("DJANGO_NUM_PROXIES")) if env("DJANGO_NUM_PROXIES") else None,
 }
 
 SIMPLE_JWT = {
@@ -215,6 +225,25 @@ NOTIFICATION_CHANNELS = ["notifications.channels.InAppChannel"]
 DATA_UPLOAD_MAX_MEMORY_SIZE = MAX_UPLOAD_BYTES
 FILE_UPLOAD_MAX_MEMORY_SIZE = MAX_UPLOAD_BYTES
 
+# ---- Observability ----
+# Secret for /api/health/ready/ (X-Monitor-Token). Empty = the readiness endpoint does not exist.
+READINESS_TOKEN = env("READINESS_TOKEN")
+
+# JSON lines on stdout with redaction (see core/logs.py). No request bodies, headers or query strings are ever logged.
+LOG_LEVEL = env("LOG_LEVEL", "INFO").upper()
+LOGGING = {
+    "version": 1,
+    "disable_existing_loggers": False,
+    "formatters": {"json": {"()": "core.logs.JsonFormatter"}},
+    "handlers": {"console": {"class": "logging.StreamHandler", "stream": "ext://sys.stdout", "formatter": "json"}},
+    "root": {"handlers": ["console"], "level": "WARNING"},
+    "loggers": {
+        "crm": {"handlers": ["console"], "level": LOG_LEVEL, "propagate": False},
+        "django": {"handlers": ["console"], "level": "WARNING", "propagate": False},
+        "django.request": {"handlers": ["console"], "level": "ERROR", "propagate": False},
+    },
+}
+
 # ---- Production hardening (everything below only applies when DJANGO_DEBUG=false) ----
 if not DEBUG:
     # The app sits behind the host's TLS-terminating proxy.
@@ -230,4 +259,4 @@ if not DEBUG:
     SECURE_REFERRER_POLICY = "same-origin"
     X_FRAME_OPTIONS = "DENY"
     # Exempt the platform health check from the HTTPS redirect (it is called over plain HTTP internally).
-    SECURE_REDIRECT_EXEMPT = [r"^api/health/$"]
+    SECURE_REDIRECT_EXEMPT = [r"^api/health/$", r"^api/health/ready/$"]

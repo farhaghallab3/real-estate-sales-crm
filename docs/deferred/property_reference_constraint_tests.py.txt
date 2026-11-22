@@ -1,0 +1,79 @@
+# DEFERRED tests for the CHECK constraint (see docs/DEFERRED_PROPERTY_REFERENCE_CHECK.md). Not collected: .txt on purpose.
+# Needs: from django.db.migrations.executor import MigrationExecutor, plus the imports of test_property_reference.py
+
+    def test_the_database_refuses_an_empty_reference(self):
+        prop = Property.objects.create(**payload(7))
+        with self.assertRaises(IntegrityError), transaction.atomic():
+            Property.objects.filter(pk=prop.pk).update(reference="")
+        with self.assertRaises(IntegrityError), transaction.atomic():
+            Property.objects.bulk_create([Property(**payload(8))])  # written around save(): no reference, so it fails loudly
+
+
+class ReferenceConstraintMigrationTests(TransactionTestCase):
+    """properties/0003: completes empty references, refuses an ambiguous one, never touches an existing reference, and is reversible."""
+
+    before = [("properties", "0002_initial")]
+    after = [("properties", "0003_property_reference_not_blank")]
+
+    def migrate(self, targets):
+        executor = MigrationExecutor(connection)
+        executor.loader.build_graph()
+        executor.migrate(targets)
+        return executor.loader.project_state(targets).apps
+
+    def tearDown(self):
+        with connection.cursor() as cursor:
+            cursor.execute("DELETE FROM properties_property")  # a test may leave the schema at the old state with rows the new state would refuse
+        executor = MigrationExecutor(connection)
+        executor.loader.build_graph()
+        executor.migrate(executor.loader.graph.leaf_nodes())  # leave the schema at the latest state for every other test
+
+    def old_property(self, apps, **kw):
+        return apps.get_model("properties", "Property").objects.create(
+            title=kw.pop("title", "x"), address="a", city="c", price=Decimal("1"), **kw
+        )
+
+    def test_empty_references_are_completed_and_existing_ones_untouched(self):
+        old = self.migrate(self.before)
+        blank_a = self.old_property(old, reference="", pk=41)   # the old design could leave at most ONE empty reference (it is unique)
+        normal = self.old_property(old, reference="PR-00099", pk=99)
+        legacy = self.old_property(old, reference="LEGACY-7", pk=77)
+        new = self.migrate(self.after)
+        Prop = new.get_model("properties", "Property")
+        self.assertEqual(Prop.objects.get(pk=blank_a.pk).reference, f"PR-{blank_a.pk:05d}")
+        self.assertEqual(Prop.objects.get(pk=normal.pk).reference, "PR-00099")
+        self.assertEqual(Prop.objects.get(pk=legacy.pk).reference, "LEGACY-7", "a reference that is not blank is never rewritten")
+        with self.assertRaises(IntegrityError), transaction.atomic():
+            Prop.objects.filter(pk=normal.pk).update(reference="")
+
+    def test_an_empty_reference_on_a_large_id_is_completed_without_truncation(self):
+        old = self.migrate(self.before)
+        big = self.old_property(old, reference="", pk=100000)
+        new = self.migrate(self.after)
+        self.assertEqual(new.get_model("properties", "Property").objects.get(pk=big.pk).reference, "PR-100000")
+
+    def test_a_database_with_nothing_to_complete_migrates_cleanly(self):
+        old = self.migrate(self.before)
+        keep = self.old_property(old, reference="PR-00005", pk=5)
+        new = self.migrate(self.after)
+        self.assertEqual(new.get_model("properties", "Property").objects.get(pk=keep.pk).reference, "PR-00005")
+
+    def test_an_ambiguous_empty_reference_stops_the_migration_and_changes_nothing(self):
+        old = self.migrate(self.before)
+        self.old_property(old, reference="", pk=5)
+        self.old_property(old, reference="PR-00005", pk=9)      # the reference property 5 would get is already taken by property 9
+        with self.assertRaises(RuntimeError):
+            self.migrate(self.after)
+        Prop = MigrationExecutor(connection).loader.project_state(self.before).apps.get_model("properties", "Property")
+        self.assertEqual(Prop.objects.get(pk=5).reference, "", "the failed migration was rolled back")
+        with connection.cursor() as cursor:
+            cursor.execute("SELECT count(*) FROM pg_constraint WHERE conname = 'property_reference_not_blank'")
+            self.assertEqual(cursor.fetchone()[0], 0)
+
+    def test_the_migration_is_reversible(self):
+        self.migrate(self.after)
+        old = self.migrate(self.before)
+        row = self.old_property(old, reference="")   # allowed again: the constraint is gone
+        self.assertEqual(row.reference, "")
+        new = self.migrate(self.after)                # and migrating forward again completes it
+        self.assertEqual(new.get_model("properties", "Property").objects.get(pk=row.pk).reference, f"PR-{row.pk:05d}")

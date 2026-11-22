@@ -103,7 +103,7 @@ export function DealDocuments({ dealId }: { dealId: number }) {
             {missing.length ? `${missing.length} missing` : "Complete"}
           </span>
         </div>
-        <ul className="grid gap-1.5 sm:grid-cols-2">
+        <ul className="grid grid-cols-1 gap-1.5 sm:grid-cols-2">
           {(checklist.data ?? []).map((c) => (
             <li key={c.category} className="flex items-center gap-2 text-sm">
               {c.complete ? (

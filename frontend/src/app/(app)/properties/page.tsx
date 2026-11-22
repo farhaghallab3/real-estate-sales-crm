@@ -26,7 +26,8 @@ import {
 } from "@/components/ui/primitives";
 import { useAuth } from "@/lib/auth";
 import { optionsOf, PROPERTY_STATUS, PROPERTY_TYPE } from "@/lib/constants";
-import { formatDate, money } from "@/lib/format";
+import { formatDate } from "@/lib/format";
+import { useMoney } from "@/lib/company";
 import { mediaUrl } from "@/lib/api";
 import { useCities, useProperties } from "@/lib/queries";
 import { useUrlState } from "@/lib/use-url-state";
@@ -47,6 +48,7 @@ const DEFAULTS = {
 };
 
 export default function PropertiesPage() {
+  const { money } = useMoney();
   const { isManager } = useAuth();
   const [f, setF] = useUrlState(DEFAULTS);
   const [addOpen, setAddOpen] = useState(false);
@@ -113,7 +115,7 @@ export default function PropertiesPage() {
             onChange={(v) => setF({ status: v })}
             options={[{ value: "", label: "All" }, ...optionsOf(PROPERTY_STATUS)]}
           />
-          <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-6">
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-6">
             <SearchInput value={f.q} onChange={(v) => setF({ q: v })} placeholder="Search title, address, ref…" className="lg:col-span-2" />
             <Select value={f.city} onChange={(e) => setF({ city: e.target.value })} aria-label="Location">
               <option value="">All locations</option>
@@ -191,7 +193,7 @@ export default function PropertiesPage() {
             }
           />
         ) : f.view === "grid" ? (
-          <div className="grid gap-3 p-3 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4">
+          <div className="grid grid-cols-1 gap-3 p-3 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4">
             {list.data!.results.map((p) => (
               <Link
                 key={p.id}

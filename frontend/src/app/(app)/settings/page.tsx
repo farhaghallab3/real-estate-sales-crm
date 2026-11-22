@@ -4,13 +4,14 @@ import { Plus } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 
+import { CompanySettingsCard } from "@/components/forms/company-settings";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Field, FormError, Input, Select } from "@/components/ui/field";
 import { Modal } from "@/components/ui/modal";
 import { Card, PageHeader, PersonChip, Table, TableWrap, Td, Th } from "@/components/ui/primitives";
 import { useToast } from "@/components/ui/toast";
-import { api, ApiError } from "@/lib/api";
+import { api, ApiError, tokens } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import { ROLE_LABEL } from "@/lib/constants";
 import { useApiMutation, useUsers } from "@/lib/queries";
@@ -88,7 +89,7 @@ function UserModal({ open, user, onClose }: { open: boolean; user: User | null; 
         </>
       }
     >
-      <div className="grid gap-3 sm:grid-cols-2">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <div className="sm:col-span-2">
           <FormError message={error} />
         </div>
@@ -122,7 +123,11 @@ function UserModal({ open, user, onClose }: { open: boolean; user: User | null; 
         <Field
           label={user ? "New password" : "Password"}
           required={!user}
-          hint={user ? "Leave blank to keep the current password" : "Minimum 8 characters"}
+          hint={
+            user
+              ? "Leave blank to keep the current password. A new one is temporary: the person must change it at next sign-in."
+              : "Minimum 8 characters. It is temporary: the person must choose their own at first sign-in."
+          }
           className="sm:col-span-2"
           error={errors.password?.message}
         >
@@ -163,10 +168,10 @@ export default function SettingsPage() {
   return (
     <div className="space-y-4">
       <PageHeader title="Profile & settings" />
-      <div className="grid gap-4 xl:grid-cols-2">
+      <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
         <Card title="Profile">
           <form
-            className="grid gap-3 sm:grid-cols-2"
+            className="grid grid-cols-1 gap-3 sm:grid-cols-2"
             onSubmit={profile.handleSubmit(async (v) => {
               try {
                 await api("/auth/me/", { method: "PATCH", body: v });
@@ -209,10 +214,12 @@ export default function SettingsPage() {
             onSubmit={pw.handleSubmit(async (v) => {
               setPwError(null);
               try {
-                await api("/auth/change-password/", {
+                // The server revokes every older token on a password change and returns a fresh pair for this session.
+                const pair = await api<{ access: string; refresh: string }>("/auth/change-password/", {
                   method: "POST",
                   body: { current_password: v.current_password, new_password: v.new_password },
                 });
+                tokens.set(pair.access, pair.refresh);
                 pw.reset();
                 toast.success("Password updated");
               } catch (e) {
@@ -247,6 +254,8 @@ export default function SettingsPage() {
         </Card>
       </div>
 
+      {user?.role === "admin" && <CompanySettingsCard />}
+
       {isManager && (
         <Card
           title="Team"
@@ -274,7 +283,7 @@ export default function SettingsPage() {
                   <Th>Name</Th>
                   <Th>Email</Th>
                   <Th>Role</Th>
-                  <Th className="text-right">Split</Th>
+                  {user?.role === "admin" && <Th className="text-right">Split</Th>}
                   <Th>Status</Th>
                   {user?.role === "admin" && <Th />}
                 </tr>
@@ -287,7 +296,9 @@ export default function SettingsPage() {
                     </Td>
                     <Td className="text-muted">{u.email}</Td>
                     <Td>{ROLE_LABEL[u.role]}</Td>
-                    <Td className="tabular text-right">{u.commission_split ? `${Number(u.commission_split)}%` : "—"}</Td>
+                    {user?.role === "admin" && (
+                      <Td className="tabular text-right">{u.commission_split ? `${Number(u.commission_split)}%` : "—"}</Td>
+                    )}
                     <Td>
                       <Badge tone={u.is_active === false ? "idle" : "ok"}>{u.is_active === false ? "Inactive" : "Active"}</Badge>
                     </Td>

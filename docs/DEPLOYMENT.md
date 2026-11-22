@@ -22,6 +22,10 @@ The browser calls the Django API directly using `NEXT_PUBLIC_API_URL`; no proxy 
 Migrations run automatically on container start (`backend/entrypoint.sh`). For several replicas, run
 `python manage.py migrate` once as a release step instead.
 
+> **Before the migration `deals.0003` (one closed deal per property) on real data**: run `python manage.py check_sales_integrity` against the
+> same database and get check A to 0 (B and C reviewed by a person). The migration refuses to run, and changes nothing, if a property has two
+> closed deals; with automatic migrations on start that would stop the container from starting. See `docs/SALES_INTEGRITY.md`.
+
 ## 2. Backend — Django container
 
 The `backend/Dockerfile` has a `prod` target (gunicorn on port 8000). Any container host works
@@ -79,3 +83,40 @@ Verify a deployment: `python manage.py check --deploy` (run in the container wit
 
 `docker compose up --build` still runs PostgreSQL, Django and Next.js locally with the `POSTGRES_*` variables from
 `.env`; the Next.js dev server proxies `/api` and `/media` to the backend container.
+
+## Public demo deployment (portfolio)
+
+Run the demo as a **completely separate instance** so recruiters never touch real data: its own Neon database,
+its own Render service and its own Vercel project, all built from the same repository.
+
+1. **Neon:** create a new project (or branch) for the demo and copy its pooled connection string.
+2. **Render (demo API service):** same build as production, with these variables. No R2 bucket is needed
+   because uploads are disabled in demo mode.
+
+   | Variable | Value |
+   |---|---|
+   | `DJANGO_DEBUG` | `false` |
+   | `DJANGO_SECRET_KEY` | a new random string (do not reuse production's) |
+   | `DATABASE_URL` | the **demo** Neon connection string |
+   | `DJANGO_ALLOWED_HOSTS` | the demo API hostname |
+   | `DJANGO_CORS_ALLOWED_ORIGINS` / `DJANGO_CSRF_TRUSTED_ORIGINS` | the demo Vercel URL |
+   | `DEMO_MODE` | `true` |
+   | `SEED_DEMO_DATA` | `true` |
+   | `DEMO_PASSWORD` | the shared public demo password |
+
+3. **Vercel (demo project):** Root Directory `frontend`, plus
+   `NEXT_PUBLIC_API_URL` (demo API URL), `NEXT_PUBLIC_DEMO_MODE=true`, `NEXT_PUBLIC_DEMO_PASSWORD` (same value as
+   `DEMO_PASSWORD`). The login page then shows one-click "Use Manager / Use Salesperson" buttons.
+
+What `DEMO_MODE=true` does: seeds sample data on first start, gives the `admin@crm.local` account no usable password,
+disables the Django admin, and rejects uploads, user management and password changes with `403`. Everything else
+(leads, tasks, viewings, deals, pipeline, reports) works normally.
+
+Reset the demo data at any time (wipes everything, reloads the sample dataset; refuses to run unless
+`DEMO_MODE=true`):
+
+```bash
+python manage.py reset_demo
+```
+
+Never set `DEMO_MODE` on a real instance.

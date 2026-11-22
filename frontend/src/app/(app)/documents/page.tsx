@@ -101,7 +101,7 @@ export default function DocumentsPage() {
         }
       />
       <Card padded={false}>
-        <div className="grid gap-2 border-b border-line p-3 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="grid grid-cols-1 gap-2 border-b border-line p-3 sm:grid-cols-2 lg:grid-cols-4">
           <SearchInput value={f.q} onChange={(v) => setF({ q: v })} placeholder="Search file, client or property…" />
           <Select value={f.category} onChange={(e) => setF({ category: e.target.value })} aria-label="Category">
             <option value="">All categories</option>

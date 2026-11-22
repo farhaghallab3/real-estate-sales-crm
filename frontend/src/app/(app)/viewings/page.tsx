@@ -32,7 +32,8 @@ export default function ViewingsPage() {
   const anchor = f.week ? new Date(f.week) : new Date();
   const weekStart = startOfWeek(anchor, { weekStartsOn: 1 });
   const weekEnd = addDays(endOfWeek(anchor, { weekStartsOn: 1 }), 0);
-  const days = useMemo(() => Array.from({ length: 7 }, (_, i) => addDays(weekStart, i)), [weekStart.getTime()]);
+  const weekStartMs = weekStart.getTime();
+  const days = useMemo(() => Array.from({ length: 7 }, (_, i) => addDays(new Date(weekStartMs), i)), [weekStartMs]);
 
   const weekQuery = useViewings(
     {

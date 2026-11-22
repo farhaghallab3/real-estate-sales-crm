@@ -17,11 +17,28 @@ import { Card, EmptyState, ErrorState, Kv, PersonChip, Skeleton } from "@/compon
 import { useToast } from "@/components/ui/toast";
 import { api, ApiError } from "@/lib/api";
 import { OFFER_STATUS, optionsOf } from "@/lib/constants";
-import { formatDate, formatDateTime, money, money2 } from "@/lib/format";
+import { formatDate, formatDateTime } from "@/lib/format";
+import { useMoney } from "@/lib/company";
 import { useApiMutation, useDeal, useTasks } from "@/lib/queries";
-import type { DealStage, Task } from "@/types";
+import type { Commission, DealStage, Task } from "@/types";
+
+/** Rows of the commission card. The server only sends what the signed-in role may see, so render what is present. */
+function commissionRows(c: Commission, money2: (v: string | number | null | undefined) => string): [string, string][] {
+  const rows: [string, string][] = [["Sale price", money2(c.sale_price)]];
+  if (c.commission_rate !== undefined && c.gross_commission !== undefined) {
+    rows.push([`Rate (${Number(c.commission_rate)}%)`, money2(c.gross_commission)]);
+  }
+  if (c.agent_split !== undefined && c.agent_commission !== undefined) {
+    rows.push([`Agent split (${Number(c.agent_split)}%)`, money2(c.agent_commission)]);
+  } else if (c.agent_split !== undefined) {
+    rows.push(["Agent split", `${Number(c.agent_split)}%`]);
+  }
+  if (c.deductions !== undefined) rows.push(["Deductions", `− ${money2(c.deductions)}`]);
+  return rows;
+}
 
 export default function DealDetailPage() {
+  const { money, money2 } = useMoney();
   const params = useParams<{ id: string }>();
   const id = Number(params.id);
   const toast = useToast();
@@ -107,7 +124,7 @@ export default function DealDetailPage() {
         )}
       </Card>
 
-      <div className="grid gap-4 xl:grid-cols-3">
+      <div className="grid grid-cols-1 gap-4 xl:grid-cols-3">
         <div className="space-y-4 xl:col-span-2">
           <Card
             title="Offers"
@@ -194,14 +211,7 @@ export default function DealDetailPage() {
                   <span className="text-muted">Status</span>
                   <CommissionStatusBadge status={d.commission.status} />
                 </div>
-                {(
-                  [
-                    ["Sale price", money2(d.commission.sale_price)],
-                    [`Rate (${Number(d.commission.commission_rate)}%)`, money2(d.commission.gross_commission)],
-                    [`Agent split (${Number(d.commission.agent_split)}%)`, money2(d.commission.agent_commission)],
-                    ["Deductions", `− ${money2(d.commission.deductions)}`],
-                  ] as const
-                ).map(([k, v]) => (
+                {commissionRows(d.commission, money2).map(([k, v]) => (
                   <div key={k} className="flex items-center justify-between">
                     <span className="text-muted">{k}</span>
                     <span className="tabular">{v}</span>

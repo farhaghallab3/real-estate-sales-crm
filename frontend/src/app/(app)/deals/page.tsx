@@ -26,13 +26,15 @@ import {
 } from "@/components/ui/primitives";
 import { useAuth } from "@/lib/auth";
 import { DEAL_STAGE, optionsOf } from "@/lib/constants";
-import { formatDate, money, relative } from "@/lib/format";
+import { formatDate, relative } from "@/lib/format";
+import { useMoney } from "@/lib/company";
 import { useDeals } from "@/lib/queries";
 import { useUrlState } from "@/lib/use-url-state";
 
 const PAGE_SIZE = 20;
 
 export default function DealsPage() {
+  const { money } = useMoney();
   const { isManager } = useAuth();
   const [f, setF] = useUrlState({ q: "", state: "open", stage: "", assigned: "", sort: "-updated_at", page: "1" });
   const [offerOpen, setOfferOpen] = useState(false);
@@ -70,7 +72,7 @@ export default function DealsPage() {
               { value: "all", label: "All" },
             ]}
           />
-          <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-4">
             <SearchInput value={f.q} onChange={(v) => setF({ q: v })} placeholder="Search client or property…" />
             <Select value={f.stage} onChange={(e) => setF({ stage: e.target.value })} aria-label="Stage">
               <option value="">All stages</option>

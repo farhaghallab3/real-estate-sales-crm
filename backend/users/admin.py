@@ -13,6 +13,7 @@ class UserAdmin(BaseUserAdmin):
     fieldsets = (
         (None, {"fields": ("email", "password")}),
         ("Profile", {"fields": ("first_name", "last_name", "phone", "job_title", "role", "commission_split")}),
+        ("Password policy", {"fields": ("must_change_password",)}),
         ("Permissions", {"fields": ("is_active", "is_staff", "is_superuser", "groups", "user_permissions")}),
     )
     add_fieldsets = (

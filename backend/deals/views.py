@@ -1,5 +1,6 @@
 from decimal import Decimal
 
+from django.db import transaction
 from django.db.models import Count, Sum
 from rest_framework import mixins, status, viewsets
 from rest_framework.decorators import action
@@ -9,6 +10,7 @@ from core.exceptions import BusinessRuleViolation
 from core.permissions import is_manager, scope_to_user
 
 from . import services
+from .protection import SALE_RECORD_MESSAGE
 from .filters import DealFilter, OfferFilter
 from .models import Deal, Offer
 from .serializers import (
@@ -47,8 +49,7 @@ class DealViewSet(viewsets.ModelViewSet):
         if not is_manager(user) and lead.assigned_to_id != user.id:
             raise BusinessRuleViolation("You can only open deals for your own leads.")
         prop = serializer.validated_data["property"]
-        if Deal.objects.filter(lead=lead, property=prop).exclude(stage__in=Deal.TERMINAL_STAGES).exists():
-            raise BusinessRuleViolation("There is already an open deal for this lead and property.")
+        self._ensure_no_open_duplicate(lead, prop)
         assignee = serializer.validated_data.get("assigned_to") or lead.assigned_to or user
         if not is_manager(user):
             assignee = user
@@ -57,10 +58,49 @@ class DealViewSet(viewsets.ModelViewSet):
             actor=user, kind="deal_created", message=f"Deal opened: {lead.name} · {prop.title}", deal=deal
         )
 
+    @staticmethod
+    def _ensure_no_open_duplicate(lead, prop, exclude_pk=None):
+        open_deals = Deal.objects.filter(lead=lead, property=prop).exclude(stage__in=Deal.TERMINAL_STAGES)
+        if exclude_pk is not None:
+            open_deals = open_deals.exclude(pk=exclude_pk)
+        if open_deals.exists():
+            raise BusinessRuleViolation("There is already an open deal for this lead and property.")
+
     def perform_update(self, serializer):
-        if not serializer.instance.is_open:
+        deal, user, data = serializer.instance, self.request.user, serializer.validated_data
+        # One transaction under the sale-related locks (property rows, then the deal row): a closing that finishes first is seen here, so a
+        # stale copy of the deal can never be written back over it (the full save below would otherwise reopen a just-closed deal).
+        with transaction.atomic():
+            services.lock_deal(deal, extra_property_ids=[data["property"].pk] if "property" in data else [])
+            self._update_locked(serializer, deal, user, data)
+
+    def _update_locked(self, serializer, deal, user, data):
+        if not deal.is_open:
             raise BusinessRuleViolation("Closed or lost deals can no longer be edited.")
+        new_assignee = data.get("assigned_to", deal.assigned_to)
+        if new_assignee != deal.assigned_to and not is_manager(user):
+            raise BusinessRuleViolation("Only managers can reassign deals.")
+        lead, prop = data.get("lead", deal.lead), data.get("property", deal.property)
+        if lead.pk != deal.lead_id and not is_manager(user) and lead.assigned_to_id != user.id:
+            raise BusinessRuleViolation("You can only link a deal to your own leads.")
+        if (lead.pk, prop.pk) != (deal.lead_id, deal.property_id):
+            # Offers record what was offered by this client on this property: they are never re-pointed, so a deal that has offers keeps
+            # its client and property. (Read under the deal's lock; submit_offer takes the same lock before it inserts an offer.)
+            if deal.offers.exists():
+                raise BusinessRuleViolation(
+                    "This deal already has offers, so its client and property can no longer be changed. Open a new deal instead."
+                )
+            self._ensure_no_open_duplicate(lead, prop, exclude_pk=deal.pk)
+        if prop.pk != deal.property_id and deal.stage in services.SALE_STAGES and services.sold_in_another_deal(prop):
+            raise BusinessRuleViolation(services.SOLD_MESSAGE)  # a deal already in the sale stages cannot be moved onto a sold property
         serializer.save()
+
+    def perform_destroy(self, instance):
+        with transaction.atomic():
+            services.lock_deal(instance)
+            if instance.stage == Deal.Stage.CLOSED:
+                raise BusinessRuleViolation(SALE_RECORD_MESSAGE)
+            instance.delete()
 
     @action(detail=True, methods=["post"])
     def move(self, request, pk=None):
@@ -126,6 +166,9 @@ class OfferViewSet(mixins.ListModelMixin, mixins.RetrieveModelMixin, mixins.Crea
             lead = data["lead"]
             if not is_manager(request.user) and lead.assigned_to_id != request.user.id:
                 raise BusinessRuleViolation("You can only record offers for your own leads.")
+            if services.sold_in_another_deal(data["property"]):
+                # Refuse before a deal is opened: submit_offer would refuse it anyway, but only after a stray deal had been created.
+                raise BusinessRuleViolation(services.SOLD_MESSAGE + " No new offers can be recorded on it.")
             deal, _ = services.get_or_create_open_deal(lead, data["property"], request.user)
             if data.get("expected_close_date"):
                 deal.expected_close_date = data["expected_close_date"]

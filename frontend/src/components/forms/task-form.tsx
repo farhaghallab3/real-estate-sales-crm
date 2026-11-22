@@ -118,7 +118,7 @@ export function TaskFormModal({
         </>
       }
     >
-      <form onSubmit={onSubmit} className="grid gap-3 sm:grid-cols-2" noValidate>
+      <form onSubmit={onSubmit} className="grid grid-cols-1 gap-3 sm:grid-cols-2" noValidate>
         <div className="sm:col-span-2">
           <FormError message={formError} />
         </div>

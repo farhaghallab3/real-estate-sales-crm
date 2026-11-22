@@ -25,7 +25,8 @@ import {
 } from "@/components/ui/primitives";
 import { useAuth } from "@/lib/auth";
 import { DEAL_STAGE, LEAD_SOURCE } from "@/lib/constants";
-import { formatTime, formatWhen, money, moneyCompact, pct, relative } from "@/lib/format";
+import { formatTime, formatWhen, pct, relative } from "@/lib/format";
+import { useMoney } from "@/lib/company";
 import { useDashboard } from "@/lib/queries";
 import type { Task } from "@/types";
 
@@ -42,6 +43,7 @@ function greeting(): string {
 }
 
 export default function DashboardPage() {
+  const { money, moneyCompact } = useMoney();
   const { user, isManager } = useAuth();
   const [days, setDays] = useState(0);
   const { data, isLoading, error, refetch } = useDashboard(days);
@@ -102,7 +104,7 @@ export default function DashboardPage() {
         )}
       </div>
 
-      <div className="grid gap-4 xl:grid-cols-3">
+      <div className="grid grid-cols-1 gap-4 xl:grid-cols-3">
         {/* Today's tasks */}
         <Card
           title="Today's tasks"
@@ -213,7 +215,7 @@ export default function DashboardPage() {
         </Card>
       </div>
 
-      <div className="grid gap-4 xl:grid-cols-3">
+      <div className="grid grid-cols-1 gap-4 xl:grid-cols-3">
         {/* Recent leads */}
         <Card
           title="Recent leads"

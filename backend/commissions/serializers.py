@@ -3,7 +3,13 @@ from rest_framework import serializers
 from properties.serializers import PropertyMiniSerializer
 from users.serializers import UserMiniSerializer
 
+from users.models import Role
+
 from .models import Commission
+
+# Money breakdown that only the Company Admin sees. commission_rate and agent_commission are included on purpose:
+# with the sale price (visible) they would reveal gross and deductions by simple arithmetic.
+ADMIN_ONLY_FIELDS = ("commission_rate", "gross_commission", "agent_commission", "deductions")
 
 
 class CommissionSerializer(serializers.ModelSerializer):
@@ -20,6 +26,23 @@ class CommissionSerializer(serializers.ModelSerializer):
             "approved_at", "paid_at", "created_at",
         ]
         read_only_fields = fields
+
+    def to_representation(self, instance):
+        """Role-based view of one commission. Default-deny: without a request the narrowest view is returned.
+
+        Admin: everything. Manager: status and net value only. Salesperson: the same plus their own agent_split.
+        """
+        data = super().to_representation(instance)
+        request = self.context.get("request")
+        user = request.user if request and request.user.is_authenticated else None
+        role = user.role if user else None
+        if role == Role.ADMIN:
+            return data
+        for field in ADMIN_ONLY_FIELDS:
+            data.pop(field, None)
+        if not (role == Role.SALESPERSON and instance.salesperson_id == user.id):
+            data.pop("agent_split", None)
+        return data
 
 
 class CommissionTermsSerializer(serializers.Serializer):

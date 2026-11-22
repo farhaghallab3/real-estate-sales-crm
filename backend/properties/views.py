@@ -1,4 +1,5 @@
 from django.conf import settings
+from django.db import transaction
 from django.db.models import Count
 from rest_framework import viewsets
 from rest_framework.decorators import action
@@ -8,6 +9,7 @@ from rest_framework.response import Response
 
 from core.exceptions import BusinessRuleViolation
 from core.permissions import is_manager
+from deals import protection
 
 from .filters import PropertyFilter
 from .models import Property, PropertyImage
@@ -43,15 +45,39 @@ class PropertyViewSet(viewsets.ModelViewSet):
         return PropertyDetailSerializer if self.action == "retrieve" else PropertySerializer
 
     def perform_create(self, serializer):
-        extra = {}
-        if not is_manager(self.request.user) and "assigned_to" not in serializer.validated_data:
-            extra["assigned_to"] = self.request.user
-        serializer.save(**extra)
+        # Salespeople always own the properties they add; only managers and admins choose (or clear) the assignee.
+        if is_manager(self.request.user):
+            serializer.save()
+        else:
+            serializer.save(assigned_to=self.request.user)
 
     def perform_update(self, serializer):
+        data = serializer.validated_data
+        reassigning = "assigned_to" in data and data["assigned_to"] != serializer.instance.assigned_to
+        if reassigning and not is_manager(self.request.user):
+            raise BusinessRuleViolation("Only managers can reassign properties.")
         old_price = serializer.instance.price
-        prop = serializer.save()
+        with transaction.atomic():
+            # The property row is locked first (the same first lock a deal closing takes), so a closing that finishes before this save is seen
+            # here, and this full save cannot write an old status back over the "sold" it set.
+            locked = Property.objects.select_for_update().get(pk=serializer.instance.pk)
+            if "status" not in data:
+                serializer.instance.status = locked.status
+            elif data["status"] != locked.status and locked.status == Property.Status.SOLD and self._has_closed_deal(locked):
+                raise BusinessRuleViolation("This property was sold in a closed deal; its status can no longer be changed.")
+            prop = serializer.save()
         record_price_change(prop, old_price, self.request.user)
+
+    def perform_destroy(self, instance):
+        with transaction.atomic():
+            protection.refuse_if_sold(protection.lock_sale_records(property_id=instance.pk))
+            instance.delete()
+
+    @staticmethod
+    def _has_closed_deal(prop: Property) -> bool:
+        from deals.models import Deal
+
+        return Deal.objects.filter(property=prop, stage=Deal.Stage.CLOSED).exists()
 
     @action(detail=False, methods=["get"])
     def cities(self, request):

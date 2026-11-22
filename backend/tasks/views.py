@@ -29,15 +29,25 @@ class TaskViewSet(viewsets.ModelViewSet):
             assignee = user  # salespeople create tasks for themselves
             if lead is not None and lead.assigned_to_id != user.id:
                 raise BusinessRuleViolation("You can only create tasks for your own leads.")
+            deal = serializer.validated_data.get("deal")
+            if deal is not None and deal.assigned_to_id != user.id:
+                raise BusinessRuleViolation("You can only create tasks for your own deals.")
         elif assignee is None:
             assignee = (lead.assigned_to if lead else None) or user
         task = serializer.save(assigned_to=assignee, created_by=user)
         services.after_task_created(task, user)
 
     def perform_update(self, serializer):
-        if not is_manager(self.request.user) and "assigned_to" in serializer.validated_data:
-            if serializer.validated_data["assigned_to"] != self.request.user:
+        task, user, data = serializer.instance, self.request.user, serializer.validated_data
+        if not is_manager(user):
+            if "assigned_to" in data and data["assigned_to"] != user:
                 raise BusinessRuleViolation("Only managers can reassign tasks.")
+            lead = data.get("lead")
+            if lead is not None and lead.pk != task.lead_id and lead.assigned_to_id != user.id:
+                raise BusinessRuleViolation("You can only link a task to your own leads.")
+            deal = data.get("deal")
+            if deal is not None and deal.pk != task.deal_id and deal.assigned_to_id != user.id:
+                raise BusinessRuleViolation("You can only link a task to your own deals.")
         serializer.save()
 
     @action(detail=False, methods=["get"])

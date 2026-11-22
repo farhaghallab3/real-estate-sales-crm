@@ -2,8 +2,7 @@ from rest_framework import serializers
 
 from properties.models import Property
 from properties.serializers import PropertyMiniSerializer
-from users.models import User
-from users.serializers import UserMiniSerializer
+from users.serializers import AssignableUserField, UserMiniSerializer
 
 from .models import Lead, LeadNote, LeadProperty
 
@@ -19,8 +18,7 @@ class LeadMiniSerializer(serializers.ModelSerializer):
 class LeadSerializer(serializers.ModelSerializer):
     name = serializers.CharField(read_only=True)
     assigned_to = UserMiniSerializer(read_only=True)
-    assigned_to_id = serializers.PrimaryKeyRelatedField(
-        queryset=User.objects.filter(is_active=True), source="assigned_to", write_only=True, required=False,
+    assigned_to_id = AssignableUserField(source="assigned_to", write_only=True, required=False,
         allow_null=True,
     )
     next_follow_up = serializers.DateTimeField(read_only=True, default=None)
@@ -41,9 +39,7 @@ class LeadSerializer(serializers.ModelSerializer):
 
 
 class AssignSerializer(serializers.Serializer):
-    assigned_to_id = serializers.PrimaryKeyRelatedField(
-        queryset=User.objects.filter(is_active=True), source="assigned_to", allow_null=True
-    )
+    assigned_to_id = AssignableUserField(source="assigned_to", allow_null=True)
 
 
 class ChangeStatusSerializer(serializers.Serializer):

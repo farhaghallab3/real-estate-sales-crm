@@ -19,7 +19,8 @@ import {
   Th,
 } from "@/components/ui/primitives";
 import { DEAL_STAGE, LEAD_SOURCE, LEAD_STATUS, optionsOf } from "@/lib/constants";
-import { money, moneyCompact, pct } from "@/lib/format";
+import { pct } from "@/lib/format";
+import { useMoney } from "@/lib/company";
 import { useAnalytics, useCities } from "@/lib/queries";
 import { useUrlState } from "@/lib/use-url-state";
 import type { LeadStatus } from "@/types";
@@ -27,6 +28,7 @@ import type { LeadStatus } from "@/types";
 const FUNNEL: LeadStatus[] = ["new", "contacted", "qualified", "viewing", "offer_made", "closed"];
 
 export default function ReportsPage() {
+  const { money, moneyCompact } = useMoney();
   const [f, setF] = useUrlState({
     from: "",
     to: "",
@@ -58,7 +60,7 @@ export default function ReportsPage() {
       <PageHeader title="Reports" description="Sales performance across the funnel. Metrics respect the filters below." />
 
       <Card>
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-7">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-7">
           <Field label="From">
             <Input type="date" value={f.from} onChange={(e) => setF({ from: e.target.value })} />
           </Field>
@@ -150,7 +152,7 @@ export default function ReportsPage() {
               )}
           </div>
 
-          <div className="grid gap-4 xl:grid-cols-2">
+          <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
             <Card title="Lead funnel" padded>
               {!d ? (
                 <Skeleton className="h-44" />
@@ -218,7 +220,7 @@ export default function ReportsPage() {
             </Card>
           </div>
 
-          <div className="grid gap-4 xl:grid-cols-3">
+          <div className="grid grid-cols-1 gap-4 xl:grid-cols-3">
             <Card title="Leads by source" padded={false} className="xl:col-span-1">
               {!d ? (
                 <div className="p-4">

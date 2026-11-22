@@ -26,7 +26,7 @@ export function Card({
   padded?: boolean;
 }) {
   return (
-    <section className={clsx("rounded-lg border border-line bg-surface shadow-card", className)}>
+    <section className={clsx("min-w-0 rounded-lg border border-line bg-surface shadow-card", className)}>
       {(title || action) && (
         <header className="flex min-h-11 items-center justify-between gap-3 border-b border-line px-4 py-2">
           <h2 className="text-sm font-semibold">{title}</h2>

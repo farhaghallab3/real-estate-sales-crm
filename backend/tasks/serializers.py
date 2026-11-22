@@ -5,17 +5,14 @@ from leads.models import Lead
 from leads.serializers import LeadMiniSerializer
 from properties.models import Property
 from properties.serializers import PropertyMiniSerializer
-from users.models import User
-from users.serializers import UserMiniSerializer
+from users.serializers import AssignableUserField, UserMiniSerializer
 
 from .models import Task
 
 
 class TaskSerializer(serializers.ModelSerializer):
     assigned_to = UserMiniSerializer(read_only=True)
-    assigned_to_id = serializers.PrimaryKeyRelatedField(
-        queryset=User.objects.filter(is_active=True), source="assigned_to", write_only=True, required=False
-    )
+    assigned_to_id = AssignableUserField(source="assigned_to", write_only=True, required=False)
     lead = LeadMiniSerializer(read_only=True)
     lead_id = serializers.PrimaryKeyRelatedField(
         queryset=Lead.objects.all(), source="lead", write_only=True, required=False, allow_null=True

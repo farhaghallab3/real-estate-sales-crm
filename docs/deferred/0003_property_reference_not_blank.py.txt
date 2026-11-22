@@ -1,0 +1,41 @@
+"""Property.reference can never be empty.
+
+Before this change a property was inserted with an EMPTY reference and given its PR-<id> reference by a second UPDATE. A crash between the two
+statements (or, with the unique index, two simultaneous creations) could leave a row whose reference is "" and which then blocked every later
+creation. New properties now get their reference in the same INSERT (Property.save), so the constraint added here only ever rejects a row that
+something wrote around save().
+
+Existing data: this migration first completes any row that still has an empty reference with the reference it would have had (PR-<id>, unchanged
+formula), refuses to run if that reference is already used by another row (a human must look at that), and never touches a row that already has a
+reference. Audit before applying it to a real database (read-only):
+
+    SELECT count(*) FILTER (WHERE reference = '')                              AS empty,
+           count(*) FILTER (WHERE reference <> '' AND reference <> 'PR-' || lpad(id::text, 5, '0')
+                                  AND NOT (id >= 100000 AND reference = 'PR-' || id::text)) AS different_from_the_formula,
+           count(*) - count(DISTINCT reference)                                AS duplicates
+    FROM properties_property;
+
+Reversible: the data step has nothing to undo, and the constraint is dropped.
+"""
+from django.db import migrations, models
+
+
+def complete_empty_references(apps, schema_editor):
+    Property = apps.get_model("properties", "Property")
+    for pk in list(Property.objects.filter(reference="").values_list("pk", flat=True)):
+        reference = f"PR-{pk:05d}"
+        if Property.objects.filter(reference=reference).exclude(pk=pk).exists():
+            raise RuntimeError(f"cannot complete the empty reference of property {pk}: {reference} is already used by another property")
+        Property.objects.filter(pk=pk).update(reference=reference)
+
+
+class Migration(migrations.Migration):
+    dependencies = [("properties", "0002_initial")]
+
+    operations = [
+        migrations.RunPython(complete_empty_references, migrations.RunPython.noop),
+        migrations.AddConstraint(
+            model_name="property",
+            constraint=models.CheckConstraint(condition=models.Q(("reference", ""), _negated=True), name="property_reference_not_blank"),
+        ),
+    ]

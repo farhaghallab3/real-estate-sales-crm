@@ -8,14 +8,15 @@ import {
   parseISO,
 } from "date-fns";
 
-const usd0 = new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 });
-const usd2 = new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", minimumFractionDigits: 2 });
-const compact = new Intl.NumberFormat("en-US", {
-  style: "currency",
-  currency: "USD",
-  notation: "compact",
-  maximumFractionDigits: 1,
-});
+// The base currency and number locale come from the company settings (see lib/company.tsx). One base currency, no
+// conversion: stored amounts are shown in that currency as they are. Latin digits are forced so the English UI stays
+// consistent whatever the locale; defaults reproduce the previous USD / en-US output exactly.
+// There is NO module-level state here: the formatters are built from an explicit config, so one request or render can
+// never see another's settings. Components get them through useMoney() (lib/company.tsx).
+export interface MoneyConfig {
+  locale: string;
+  currency_code: string;
+}
 
 type Num = string | number | null | undefined;
 
@@ -25,19 +26,29 @@ const num = (v: Num): number | null => {
   return Number.isFinite(n) ? n : null;
 };
 
-export function money(v: Num): string {
-  const n = num(v);
-  return n === null ? "—" : usd0.format(n);
+export interface MoneyFormatters {
+  money: (v: Num) => string;
+  money2: (v: Num) => string;
+  moneyCompact: (v: Num) => string;
 }
 
-export function money2(v: Num): string {
-  const n = num(v);
-  return n === null ? "—" : usd2.format(n);
-}
-
-export function moneyCompact(v: Num): string {
-  const n = num(v);
-  return n === null ? "—" : compact.format(n);
+export function makeMoneyFormatters(cfg: MoneyConfig): MoneyFormatters {
+  const base = { style: "currency" as const, currency: cfg.currency_code, numberingSystem: "latn" };
+  const make = (extra: Intl.NumberFormatOptions) => {
+    try {
+      return new Intl.NumberFormat(cfg.locale, { ...base, ...extra });
+    } catch {
+      return new Intl.NumberFormat("en-US", { ...base, currency: "USD", ...extra }); // unknown locale/currency: never crash
+    }
+  };
+  const whole = make({ maximumFractionDigits: 0 });
+  const cents = make({ minimumFractionDigits: 2 });
+  const compact = make({ notation: "compact", maximumFractionDigits: 1 });
+  const wrap = (nf: Intl.NumberFormat) => (v: Num) => {
+    const n = num(v);
+    return n === null ? "—" : nf.format(n);
+  };
+  return { money: wrap(whole), money2: wrap(cents), moneyCompact: wrap(compact) };
 }
 
 export function parse(iso: string | null | undefined): Date | null {
