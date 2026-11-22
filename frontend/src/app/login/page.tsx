@@ -8,17 +8,21 @@ import { BrandMark } from "@/components/ui/brand";
 import { Button } from "@/components/ui/button";
 import { Field, FormError, Input } from "@/components/ui/field";
 import { ApiError } from "@/lib/api";
+import { describeError } from "@/lib/api-errors";
+import { useApiErrors } from "@/lib/use-api-errors";
 import { useAuth } from "@/lib/auth";
 import { useCompany } from "@/lib/company";
+import { useTranslations } from "next-intl";
+import { LanguageSwitcher } from "@/components/layout/language-switcher";
 
 // Public portfolio demo only (NEXT_PUBLIC_DEMO_MODE=true on the demo deployment). The demo password is public
 // by design and protects nothing but disposable sample data.
 const DEMO_MODE = process.env.NEXT_PUBLIC_DEMO_MODE === "true";
 const DEMO_PASSWORD = process.env.NEXT_PUBLIC_DEMO_PASSWORD ?? "";
 const DEMO_ACCOUNTS = [
-  { label: "Manager (team view)", email: "manager@crm.local" },
-  { label: "Salesperson", email: "sofia@crm.local" },
-];
+  { labelKey: "auth.demoManager", email: "manager@crm.local" },
+  { labelKey: "auth.demoSalesperson", email: "sofia@crm.local" },
+] as const;
 
 interface LoginForm {
   email: string;
@@ -26,6 +30,8 @@ interface LoginForm {
 }
 
 export default function LoginPage() {
+  const t = useTranslations();
+  const { errorText } = useApiErrors();
   const { login, status, user } = useAuth();
   const { company_name } = useCompany();
   const router = useRouter();
@@ -56,10 +62,14 @@ export default function LoginPage() {
       setRedirecting(true);
       router.replace(signedIn.must_change_password ? "/change-password" : "/dashboard");
     } catch (e) {
+      // wrong credentials, too many attempts (429) and no connection each have their own message; anything else keeps the generic sign-in message
+      const known = describeError(e).kind;
       setError(
         e instanceof ApiError && e.status === 401
-          ? "Incorrect email or password."
-          : "Unable to sign in right now. Please try again.",
+          ? t("auth.incorrectEmailOrPassword")
+          : known === "rateLimited" || known === "network"
+            ? errorText(e)
+            : t("auth.unableSignRightNowPlease"),
       );
     }
   });
@@ -72,12 +82,11 @@ export default function LoginPage() {
           <span className="text-lg font-semibold tracking-tight">{company_name}</span>
         </div>
         <div className="max-w-md">
-          <h1 className="text-3xl font-semibold leading-tight tracking-tight">Sales operations, in one workspace.</h1>
+          <h1 className="text-3xl font-semibold leading-tight tracking-tight">{t("auth.salesOperationsOneWorkspace")}</h1>
           <p className="mt-3 text-sm leading-relaxed text-sidebar-text">
-            Leads, inventory, viewings, offers and commissions — from first call to closed deal.
-          </p>
+            {t("auth.leadsInventoryViewingsOffersCommissions")}</p>
         </div>
-        <p className="text-xs text-sidebar-text">Internal use only. Activity is logged.</p>
+        <p className="text-xs text-sidebar-text">{t("auth.internalUseOnlyActivityLogged")}</p>
       </section>
 
       <section className="flex items-center justify-center px-6 py-12">
@@ -87,12 +96,12 @@ export default function LoginPage() {
             <span className="text-lg font-semibold tracking-tight">{company_name}</span>
           </div>
           <div>
-            <h2 className="text-xl font-semibold">Sign in</h2>
-            <p className="mt-1 text-sm text-muted">Use your company account to continue.</p>
+            <h2 className="text-xl font-semibold">{t("auth.signIn")}</h2>
+            <p className="mt-1 text-sm text-muted">{t("auth.useCompanyAccountContinue")}</p>
           </div>
           {DEMO_MODE && (
             <div className="rounded-md border border-line bg-surface p-3 text-xs text-muted">
-              <p className="mb-2 font-medium text-ink">Public demo — sample data, resets regularly.</p>
+              <p className="mb-2 font-medium text-ink">{t("auth.publicDemoSampleDataResets")}</p>
               <div className="flex flex-wrap gap-2">
                 {DEMO_ACCOUNTS.map((a) => (
                   <Button
@@ -103,31 +112,31 @@ export default function LoginPage() {
                       setValue("password", DEMO_PASSWORD);
                     }}
                   >
-                    Use {a.label}
-                  </Button>
+                    {t("auth.useLabel", { label: t(a.labelKey) })}</Button>
                 ))}
               </div>
             </div>
           )}
           <FormError message={error} />
-          <Field label="Email" error={errors.email?.message}>
+          <Field label={t("common.email")} error={errors.email?.message}>
             <Input
               type="email"
               autoComplete="username"
               autoFocus
-              {...register("email", { required: "Email is required" })}
+              {...register("email", { required: t("auth.emailRequired") })}
             />
           </Field>
-          <Field label="Password" error={errors.password?.message}>
+          <Field label={t("common.password")} error={errors.password?.message}>
             <Input
               type="password"
               autoComplete="current-password"
-              {...register("password", { required: "Password is required" })}
+              {...register("password", { required: t("auth.passwordRequired") })}
             />
           </Field>
           <Button type="submit" variant="primary" className="w-full" loading={isSubmitting || redirecting}>
-            {redirecting ? "Opening workspace…" : "Sign in"}
+            {redirecting ? t("auth.openingWorkspace") : t("auth.signIn")}
           </Button>
+          <LanguageSwitcher variant="inline" />
         </form>
       </section>
     </main>

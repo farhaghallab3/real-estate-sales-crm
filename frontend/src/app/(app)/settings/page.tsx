@@ -9,13 +9,16 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Field, FormError, Input, Select } from "@/components/ui/field";
 import { Modal } from "@/components/ui/modal";
-import { Card, PageHeader, PersonChip, Table, TableWrap, Td, Th } from "@/components/ui/primitives";
+import { Card, PageHeader, PersonChip, Table, TableWrap, Td, Th, Ltr } from "@/components/ui/primitives";
 import { useToast } from "@/components/ui/toast";
-import { api, ApiError, tokens } from "@/lib/api";
+import { api, tokens } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
-import { ROLE_LABEL } from "@/lib/constants";
+import { ROLES } from "@/lib/constants";
 import { useApiMutation, useUsers } from "@/lib/queries";
 import type { Role, User } from "@/types";
+import { useTranslations } from "next-intl";
+import { useEnums } from "@/lib/enums";
+import { useApiErrors } from "@/lib/use-api-errors";
 
 interface UserForm {
   email: string;
@@ -30,6 +33,9 @@ interface UserForm {
 }
 
 function UserModal({ open, user, onClose }: { open: boolean; user: User | null; onClose: () => void }) {
+  const enums = useEnums();
+  const t = useTranslations();
+  const { errorText } = useApiErrors();
   const toast = useToast();
   const [error, setError] = useState<string | null>(null);
   const {
@@ -67,25 +73,24 @@ function UserModal({ open, user, onClose }: { open: boolean; user: User | null; 
     <Modal
       open={open}
       onClose={onClose}
-      title={user ? "Edit team member" : "Add team member"}
+      title={user ? t("settings.editTeamMember") : t("settings.addTeamMember")}
       footer={
         <>
-          <Button onClick={onClose}>Cancel</Button>
+          <Button onClick={onClose}>{t("common.cancel")}</Button>
           <Button
             variant="primary"
             loading={save.isPending}
             onClick={handleSubmit(async (v) => {
               try {
                 await save.mutateAsync(v);
-                toast.success(user ? "User updated" : "User created");
+                toast.success(user ? t("settings.userUpdated") : t("settings.userCreated"));
                 onClose();
               } catch (e) {
-                setError(e instanceof ApiError ? e.message : "Could not save user");
+                setError(errorText(e, t("settings.couldNotSaveUser")));
               }
             })}
           >
-            Save
-          </Button>
+            {t("common.save")}</Button>
         </>
       }
     >
@@ -93,50 +98,49 @@ function UserModal({ open, user, onClose }: { open: boolean; user: User | null; 
         <div className="sm:col-span-2">
           <FormError message={error} />
         </div>
-        <Field label="First name" required error={errors.first_name?.message}>
-          <Input {...register("first_name", { required: "Required" })} />
+        <Field label={t("common.firstName")} required error={errors.first_name?.message}>
+          <Input {...register("first_name", { required: t("settings.required") })} />
         </Field>
-        <Field label="Last name">
+        <Field label={t("common.lastName")}>
           <Input {...register("last_name")} />
         </Field>
-        <Field label="Email" required className="sm:col-span-2" error={errors.email?.message}>
-          <Input type="email" disabled={Boolean(user)} {...register("email", { required: "Required" })} />
+        <Field label={t("common.email")} required className="sm:col-span-2" error={errors.email?.message}>
+          <Input type="email" disabled={Boolean(user)} {...register("email", { required: t("settings.required") })} />
         </Field>
-        <Field label="Role">
+        <Field label={t("settings.role")}>
           <Select {...register("role")}>
-            {(Object.keys(ROLE_LABEL) as Role[]).map((r) => (
+            {ROLES.map((r) => (
               <option key={r} value={r}>
-                {ROLE_LABEL[r]}
+                {enums.label("role", r)}
               </option>
             ))}
           </Select>
         </Field>
-        <Field label="Commission split (%)">
+        <Field label={t("settings.commissionSplit")}>
           <Input type="number" min={0} max={100} step="0.5" {...register("commission_split")} />
         </Field>
-        <Field label="Job title">
+        <Field label={t("settings.jobTitle")}>
           <Input {...register("job_title")} />
         </Field>
-        <Field label="Phone">
+        <Field label={t("common.phone")}>
           <Input {...register("phone")} />
         </Field>
         <Field
-          label={user ? "New password" : "Password"}
+          label={user ? t("common.newPassword") : t("common.password")}
           required={!user}
           hint={
             user
-              ? "Leave blank to keep the current password. A new one is temporary: the person must change it at next sign-in."
-              : "Minimum 8 characters. It is temporary: the person must choose their own at first sign-in."
+              ? t("settings.leaveBlankKeepCurrentPassword")
+              : t("settings.minimumCharactersItTemporaryPerson")
           }
           className="sm:col-span-2"
           error={errors.password?.message}
         >
-          <Input type="password" autoComplete="new-password" {...register("password", { minLength: { value: 8, message: "At least 8 characters" } })} />
+          <Input type="password" autoComplete="new-password" {...register("password", { minLength: { value: 8, message: t("common.atLeastCharacters") } })} />
         </Field>
         {user && (
           <label className="flex items-center gap-2 text-sm sm:col-span-2">
-            <input type="checkbox" {...register("is_active")} /> Active (can sign in)
-          </label>
+            <input type="checkbox" {...register("is_active")} /> {" "}{t("settings.activeCanSign")}</label>
         )}
       </div>
     </Modal>
@@ -144,6 +148,9 @@ function UserModal({ open, user, onClose }: { open: boolean; user: User | null; 
 }
 
 export default function SettingsPage() {
+  const enums = useEnums();
+  const t = useTranslations();
+  const { errorText } = useApiErrors();
   const { user, isManager, refreshUser } = useAuth();
   const toast = useToast();
   const users = useUsers();
@@ -167,48 +174,47 @@ export default function SettingsPage() {
 
   return (
     <div className="space-y-4">
-      <PageHeader title="Profile & settings" />
+      <PageHeader title={t("common.profileSettings")} />
       <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
-        <Card title="Profile">
+        <Card title={t("settings.profile")}>
           <form
             className="grid grid-cols-1 gap-3 sm:grid-cols-2"
             onSubmit={profile.handleSubmit(async (v) => {
               try {
                 await api("/auth/me/", { method: "PATCH", body: v });
                 await refreshUser();
-                toast.success("Profile saved");
+                toast.success(t("settings.profileSaved"));
               } catch (e) {
-                toast.error(e instanceof ApiError ? e.message : "Could not save");
+                toast.error(errorText(e, t("common.couldNotSave")));
               }
             })}
           >
-            <Field label="First name">
+            <Field label={t("common.firstName")}>
               <Input {...profile.register("first_name")} />
             </Field>
-            <Field label="Last name">
+            <Field label={t("common.lastName")}>
               <Input {...profile.register("last_name")} />
             </Field>
-            <Field label="Email">
+            <Field label={t("common.email")}>
               <Input value={user?.email ?? ""} disabled readOnly />
             </Field>
-            <Field label="Role">
-              <Input value={user ? ROLE_LABEL[user.role] : ""} disabled readOnly />
+            <Field label={t("settings.role")}>
+              <Input value={user ? enums.label("role", user.role) : ""} disabled readOnly />
             </Field>
-            <Field label="Phone">
+            <Field label={t("common.phone")}>
               <Input {...profile.register("phone")} />
             </Field>
-            <Field label="Job title">
+            <Field label={t("settings.jobTitle")}>
               <Input {...profile.register("job_title")} />
             </Field>
             <div className="sm:col-span-2">
               <Button type="submit" variant="primary" loading={profile.formState.isSubmitting}>
-                Save profile
-              </Button>
+                {t("settings.saveProfile")}</Button>
             </div>
           </form>
         </Card>
 
-        <Card title="Change password">
+        <Card title={t("settings.changePassword")}>
           <form
             className="space-y-3"
             onSubmit={pw.handleSubmit(async (v) => {
@@ -221,35 +227,34 @@ export default function SettingsPage() {
                 });
                 tokens.set(pair.access, pair.refresh);
                 pw.reset();
-                toast.success("Password updated");
+                toast.success(t("settings.passwordUpdated"));
               } catch (e) {
-                setPwError(e instanceof ApiError ? e.message : "Could not update password");
+                setPwError(errorText(e, t("settings.couldNotUpdatePassword")));
               }
             })}
           >
             <FormError message={pwError} />
-            <Field label="Current password" error={pw.formState.errors.current_password?.message}>
-              <Input type="password" autoComplete="current-password" {...pw.register("current_password", { required: "Required" })} />
+            <Field label={t("settings.currentPassword")} error={pw.formState.errors.current_password?.message}>
+              <Input type="password" autoComplete="current-password" {...pw.register("current_password", { required: t("settings.required") })} />
             </Field>
-            <Field label="New password" error={pw.formState.errors.new_password?.message}>
+            <Field label={t("common.newPassword")} error={pw.formState.errors.new_password?.message}>
               <Input
                 type="password"
                 autoComplete="new-password"
-                {...pw.register("new_password", { required: "Required", minLength: { value: 8, message: "At least 8 characters" } })}
+                {...pw.register("new_password", { required: t("settings.required"), minLength: { value: 8, message: t("common.atLeastCharacters") } })}
               />
             </Field>
-            <Field label="Confirm new password" error={pw.formState.errors.confirm?.message}>
+            <Field label={t("common.confirmNewPassword")} error={pw.formState.errors.confirm?.message}>
               <Input
                 type="password"
                 autoComplete="new-password"
                 {...pw.register("confirm", {
-                  validate: (v) => v === pw.getValues("new_password") || "Passwords do not match",
+                  validate: (v) => v === pw.getValues("new_password") || t("settings.passwordsDoNotMatch"),
                 })}
               />
             </Field>
             <Button type="submit" loading={pw.formState.isSubmitting}>
-              Update password
-            </Button>
+              {t("settings.updatePassword")}</Button>
           </form>
         </Card>
       </div>
@@ -258,7 +263,7 @@ export default function SettingsPage() {
 
       {isManager && (
         <Card
-          title="Team"
+          title={t("settings.team")}
           padded={false}
           action={
             user?.role === "admin" && (
@@ -271,8 +276,7 @@ export default function SettingsPage() {
                   setUserModal(true);
                 }}
               >
-                Add member
-              </Button>
+                {t("settings.addMember")}</Button>
             )
           }
         >
@@ -280,11 +284,11 @@ export default function SettingsPage() {
             <Table>
               <thead>
                 <tr>
-                  <Th>Name</Th>
-                  <Th>Email</Th>
-                  <Th>Role</Th>
-                  {user?.role === "admin" && <Th className="text-right">Split</Th>}
-                  <Th>Status</Th>
+                  <Th>{t("settings.name")}</Th>
+                  <Th>{t("common.email")}</Th>
+                  <Th>{t("settings.role")}</Th>
+                  {user?.role === "admin" && <Th className="text-end">{t("common.split")}</Th>}
+                  <Th>{t("common.status")}</Th>
                   {user?.role === "admin" && <Th />}
                 </tr>
               </thead>
@@ -294,16 +298,16 @@ export default function SettingsPage() {
                     <Td>
                       <PersonChip name={u.full_name} />
                     </Td>
-                    <Td className="text-muted">{u.email}</Td>
-                    <Td>{ROLE_LABEL[u.role]}</Td>
+                    <Td className="text-muted"><Ltr>{u.email}</Ltr></Td>
+                    <Td>{enums.label("role", u.role)}</Td>
                     {user?.role === "admin" && (
-                      <Td className="tabular text-right">{u.commission_split ? `${Number(u.commission_split)}%` : "—"}</Td>
+                      <Td className="tabular text-end">{u.commission_split ? `${Number(u.commission_split)}%` : "—"}</Td>
                     )}
                     <Td>
-                      <Badge tone={u.is_active === false ? "idle" : "ok"}>{u.is_active === false ? "Inactive" : "Active"}</Badge>
+                      <Badge tone={u.is_active === false ? "idle" : "ok"}>{u.is_active === false ? t("settings.inactive") : t("settings.active")}</Badge>
                     </Td>
                     {user?.role === "admin" && (
-                      <Td className="text-right">
+                      <Td className="text-end">
                         <Button
                           size="sm"
                           onClick={() => {
@@ -311,8 +315,7 @@ export default function SettingsPage() {
                             setUserModal(true);
                           }}
                         >
-                          Edit
-                        </Button>
+                          {t("common.edit")}</Button>
                       </Td>
                     )}
                   </tr>

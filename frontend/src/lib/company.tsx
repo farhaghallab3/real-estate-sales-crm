@@ -1,31 +1,16 @@
 "use client";
 
+import { useLocale, useTranslations } from "next-intl";
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 
 import { API_ORIGIN } from "@/lib/api";
-import { makeMoneyFormatters, type MoneyFormatters } from "@/lib/format";
+import { DEFAULT_COMPANY, type CompanyConfig } from "@/lib/company-defaults";
+import { makeFormatters, type Formatters, type Translate } from "@/lib/format";
+import { weekSettingsFor, type WeekSettings } from "@/lib/week";
 
-/** Public branding and formatting of this deployment's company (GET /api/config/, no secrets, no sign-in needed). */
-export interface CompanyConfig {
-  company_name: string;
-  workspace_label: string;
-  currency_code: string;
-  locale: string;
-  language: string;
-  direction: "ltr" | "rtl";
-  logo_url: string | null;
-}
-
-/** What the interface looked like before company settings existed; used if the config cannot be fetched. */
-export const DEFAULT_COMPANY: CompanyConfig = {
-  company_name: "Keystone",
-  workspace_label: "Sales workspace",
-  currency_code: "USD",
-  locale: "en-US",
-  language: "en",
-  direction: "ltr",
-  logo_url: null,
-};
+// The shape and the defaults live in company-defaults.ts (importable from Server Components); they are re-exported so client code keeps importing them from here.
+export { DEFAULT_COMPANY };
+export type { CompanyConfig };
 
 interface CompanyContextValue extends CompanyConfig {
   /** Absolute-enough URL for <img src>, or null when no logo is set. */
@@ -69,8 +54,22 @@ export function CompanyProvider({ initial, children }: { initial: CompanyConfig 
 
 export const useCompany = () => useContext(CompanyContext);
 
-/** Money formatters bound to THIS company's currency and locale (from the provider, never from shared module state). */
-export function useMoney(): MoneyFormatters {
+/** Every number, amount, date and relative-time formatter, bound to THIS company's currency and region and to the interface language (never shared module state). */
+export function useFormat(): Formatters {
   const { currency_code, locale } = useCompany();
-  return useMemo(() => makeMoneyFormatters({ currency_code, locale }), [currency_code, locale]);
+  const language = useLocale();
+  const t = useTranslations();
+  return useMemo(() => makeFormatters({ language, companyLocale: locale, currency_code }, t as unknown as Translate), [language, locale, currency_code, t]);
+}
+
+/** The money subset of useFormat(). */
+export function useMoney(): Pick<Formatters, "money" | "money2" | "moneyCompact"> {
+  const { money, money2, moneyCompact } = useFormat();
+  return useMemo(() => ({ money, money2, moneyCompact }), [money, money2, moneyCompact]);
+}
+
+/** Week start and weekend days, defaulted from the company's region (lib/week.ts). */
+export function useWeek(): WeekSettings {
+  const { locale } = useCompany();
+  return useMemo(() => weekSettingsFor(locale), [locale]);
 }

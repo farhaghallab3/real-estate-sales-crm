@@ -12,14 +12,16 @@ import { Button } from "@/components/ui/button";
 import { Select } from "@/components/ui/field";
 import { ErrorState, PageHeader, PersonChip, SearchInput, Skeleton } from "@/components/ui/primitives";
 import { useToast } from "@/components/ui/toast";
-import { api, ApiError } from "@/lib/api";
+import { api } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
-import { DEAL_STAGE, PIPELINE_STAGES } from "@/lib/constants";
-import { formatDate } from "@/lib/format";
-import { useMoney } from "@/lib/company";
+import { PIPELINE_STAGES } from "@/lib/constants";
+import { useMoney, useFormat } from "@/lib/company";
 import { useApiMutation, usePipeline } from "@/lib/queries";
 import { useUrlState } from "@/lib/use-url-state";
 import type { Deal, DealStage } from "@/types";
+import { useTranslations } from "next-intl";
+import { useEnums } from "@/lib/enums";
+import { useApiErrors } from "@/lib/use-api-errors";
 
 const TONE_BAR: Record<DealStage, string> = {
   interested: "bg-idle-fg/40",
@@ -32,7 +34,11 @@ const TONE_BAR: Record<DealStage, string> = {
 };
 
 export default function PipelinePage() {
+  const enums = useEnums();
+  const t = useTranslations();
+  const { errorText } = useApiErrors();
   const { money, moneyCompact } = useMoney();
+  const { formatDate } = useFormat();
   const { isManager } = useAuth();
   const toast = useToast();
   const router = useRouter();
@@ -50,7 +56,7 @@ export default function PipelinePage() {
   const requestMove = async (deal: Deal, stage: DealStage) => {
     if (deal.stage === stage) return;
     if (deal.stage === "closed") {
-      toast.error("Closed deals can't be moved.");
+      toast.error(t("pipeline.closedDealsCanTMoved"));
       return;
     }
     if (stage === "lost" || stage === "closed") {
@@ -59,9 +65,9 @@ export default function PipelinePage() {
     }
     try {
       await move.mutateAsync({ deal, stage });
-      toast.success(`Moved to ${DEAL_STAGE[stage].label}`);
+      toast.success(t("pipeline.movedLabel", { label: enums.label("dealStage", stage) }));
     } catch (e) {
-      toast.error(e instanceof ApiError ? e.message : "Could not move deal");
+      toast.error(errorText(e, t("common.couldNotMoveDeal")));
     }
   };
 
@@ -72,29 +78,28 @@ export default function PipelinePage() {
   return (
     <div>
       <PageHeader
-        title="Sales pipeline"
-        description="Drag a deal between stages, or use the stage menu on the card."
+        title={t("common.salesPipeline")}
+        description={t("pipeline.dragDealBetweenStagesOr")}
         actions={
           <Button variant="primary" icon={<Plus className="h-4 w-4" />} onClick={() => setOfferOpen(true)}>
-            Create offer
-          </Button>
+            {t("common.createOffer")}</Button>
         }
       />
       <div className="mb-3 flex flex-wrap items-center gap-2">
-        <SearchInput value={f.q} onChange={(v) => setF({ q: v })} placeholder="Search client or property…" className="w-72 max-w-full" />
+        <SearchInput value={f.q} onChange={(v) => setF({ q: v })} placeholder={t("common.searchClientOrProperty")} className="w-72 max-w-full" />
         {isManager && (
           <UserSelect
             className="w-48"
             value={f.assigned ? Number(f.assigned) : null}
             onChange={(id) => setF({ assigned: id ? String(id) : "" })}
-            emptyLabel="All salespeople"
-            aria-label="Salesperson"
+            emptyLabel={t("common.allSalespeople")}
+            aria-label={t("common.salesperson")}
           />
         )}
       </div>
 
       {board.error ? (
-        <ErrorState message={(board.error as Error).message} onRetry={() => void board.refetch()} />
+        <ErrorState message={errorText(board.error)} onRetry={() => void board.refetch()} />
       ) : board.isLoading ? (
         <div className="flex gap-3 overflow-x-auto">
           {PIPELINE_STAGES.map((s) => (
@@ -108,7 +113,7 @@ export default function PipelinePage() {
             return (
               <section
                 key={stage}
-                aria-label={DEAL_STAGE[stage].label}
+                aria-label={enums.label("dealStage", stage)}
                 onDragOver={(e) => {
                   e.preventDefault();
                   setOverStage(stage);
@@ -130,7 +135,7 @@ export default function PipelinePage() {
                   <div className="flex items-center justify-between">
                     <h2 className="flex items-center gap-2 text-sm font-semibold">
                       <span className={clsx("h-2 w-2 rounded-full", TONE_BAR[stage])} />
-                      {DEAL_STAGE[stage].label}
+                      {enums.label("dealStage", stage)}
                     </h2>
                     <span className="tabular rounded-full bg-surface px-2 text-xs text-muted">{col?.count ?? 0}</span>
                   </div>
@@ -138,7 +143,7 @@ export default function PipelinePage() {
                 </header>
                 <div className="flex min-h-[8rem] flex-1 flex-col gap-2 overflow-y-auto px-2 pb-2">
                   {col?.deals.length === 0 && (
-                    <p className="px-1 py-6 text-center text-xs text-muted/70">No deals</p>
+                    <p className="px-1 py-6 text-center text-xs text-muted/70">{t("pipeline.noDeals")}</p>
                   )}
                   {col?.deals.map((d) => (
                     <article
@@ -173,7 +178,7 @@ export default function PipelinePage() {
                           <PersonChip name={d.assigned_to?.full_name} />
                         </span>
                         {d.expected_close_date && (
-                          <span className="inline-flex shrink-0 items-center gap-1" title="Expected close">
+                          <span className="inline-flex shrink-0 items-center gap-1" title={t("common.expectedClose")}>
                             <CalendarClock className="h-3 w-3" />
                             {formatDate(d.expected_close_date)}
                           </span>
@@ -185,11 +190,11 @@ export default function PipelinePage() {
                           onChange={(e) => void requestMove(d, e.target.value as DealStage)}
                           disabled={d.stage === "closed"}
                           className="h-7 text-xs"
-                          aria-label={`Stage for ${d.lead.name}`}
+                          aria-label={t("pipeline.stageName", { name: d.lead.name })}
                         >
                           {PIPELINE_STAGES.map((s) => (
                             <option key={s} value={s}>
-                              {DEAL_STAGE[s].label}
+                              {enums.label("dealStage", s)}
                             </option>
                           ))}
                         </Select>
@@ -198,8 +203,7 @@ export default function PipelinePage() {
                   ))}
                   {col && col.count > col.deals.length && (
                     <Link href={`/deals?stage=${stage}`} className="px-1 py-1 text-center text-xs text-brand hover:underline">
-                      +{col.count - col.deals.length} more
-                    </Link>
+                      {t("pipeline.valueMore", { value: col.count - col.deals.length })}</Link>
                   )}
                 </div>
               </section>

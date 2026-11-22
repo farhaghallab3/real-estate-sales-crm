@@ -15,17 +15,23 @@ import {
   PropertyStatusBadge,
 } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, EmptyState, ErrorState, Kv, PersonChip, Skeleton } from "@/components/ui/primitives";
+import { Card, EmptyState, ErrorState, Kv, PersonChip, Skeleton, Ltr } from "@/components/ui/primitives";
 import { useToast } from "@/components/ui/toast";
-import { api, ApiError, mediaUrl } from "@/lib/api";
-import { PROPERTY_TYPE } from "@/lib/constants";
-import { formatDate, formatDateTime } from "@/lib/format";
-import { useMoney } from "@/lib/company";
+import { api, mediaUrl } from "@/lib/api";
+
+import { useMoney, useFormat } from "@/lib/company";
 import { useApiMutation, useProperty } from "@/lib/queries";
 import type { Viewing } from "@/types";
+import { useTranslations } from "next-intl";
+import { useEnums } from "@/lib/enums";
+import { useApiErrors } from "@/lib/use-api-errors";
 
 export default function PropertyDetailPage() {
+  const enums = useEnums();
+  const t = useTranslations();
+  const { errorText } = useApiErrors();
   const { money } = useMoney();
+  const { formatDate, formatDateTime } = useFormat();
   const params = useParams<{ id: string }>();
   const id = Number(params.id);
   const toast = useToast();
@@ -46,14 +52,13 @@ export default function PropertyDetailPage() {
 
   if (property.isLoading) return <Skeleton className="h-64" />;
   if (property.error || !property.data)
-    return <ErrorState message={(property.error as Error | null)?.message ?? "Property not found"} />;
+    return <ErrorState message={errorText(property.error, t("properties.propertyNotFound"))} />;
   const p = property.data;
 
   return (
     <div className="space-y-4">
       <Link href="/properties" className="inline-flex items-center gap-1 text-xs text-muted hover:text-ink">
-        <ArrowLeft className="h-3.5 w-3.5" /> Properties
-      </Link>
+        <ArrowLeft className="h-3.5 w-3.5 rtl:-scale-x-100" /> {" "}{t("properties.properties")}</Link>
 
       <Card>
         <div className="flex flex-wrap items-start justify-between gap-4">
@@ -68,25 +73,22 @@ export default function PropertyDetailPage() {
             <div className="mt-2 flex flex-wrap items-center gap-4 text-sm text-muted">
               <span className="inline-flex items-center gap-1.5"><BedDouble className="h-4 w-4" />{p.bedrooms} beds</span>
               <span className="inline-flex items-center gap-1.5"><Bath className="h-4 w-4" />{p.bathrooms} baths</span>
-              <span className="inline-flex items-center gap-1.5"><Maximize2 className="h-4 w-4" />{p.area_sqm ? `${Number(p.area_sqm)} m²` : "—"}</span>
-              <span>{PROPERTY_TYPE[p.property_type]}</span>
+              <span className="inline-flex items-center gap-1.5"><Maximize2 className="h-4 w-4" />{p.area_sqm ? t("properties.valueM", { value: Number(p.area_sqm) }) : "—"}</span>
+              <span>{enums.label("propertyType", p.property_type)}</span>
             </div>
           </div>
-          <div className="text-right">
+          <div className="text-end">
             <p className="tabular text-2xl font-semibold">{money(p.price)}</p>
-            <p className="mt-0.5 text-xs text-muted">Listed {formatDate(p.created_at)}</p>
+            <p className="mt-0.5 text-xs text-muted">{t("properties.listedValue", { value: formatDate(p.created_at) })}</p>
           </div>
         </div>
         <div className="mt-4 flex flex-wrap gap-2 border-t border-line pt-3">
           <Button size="sm" variant="primary" onClick={() => setViewingOpen(true)}>
-            Schedule viewing
-          </Button>
+            {t("common.scheduleViewing")}</Button>
           <Button size="sm" icon={<Pencil className="h-3.5 w-3.5" />} onClick={() => setEditOpen(true)}>
-            Edit
-          </Button>
+            {t("common.edit")}</Button>
           <Button size="sm" icon={<ImagePlus className="h-3.5 w-3.5" />} loading={upload.isPending} onClick={() => fileInput.current?.click()}>
-            Add image
-          </Button>
+            {t("properties.addImage")}</Button>
           <input
             ref={fileInput}
             type="file"
@@ -98,9 +100,9 @@ export default function PropertyDetailPage() {
               if (!file) return;
               try {
                 await upload.mutateAsync(file);
-                toast.success("Image uploaded");
+                toast.success(t("properties.imageUploaded"));
               } catch (err) {
-                toast.error(err instanceof ApiError ? err.message : "Upload failed");
+                toast.error(errorText(err, t("common.uploadFailed")));
               }
             }}
           />
@@ -109,9 +111,9 @@ export default function PropertyDetailPage() {
 
       <div className="grid grid-cols-1 gap-4 xl:grid-cols-3">
         <div className="space-y-4 xl:col-span-2">
-          <Card title={`Interested leads (${p.interested_leads.length})`} padded={false}>
+          <Card title={t("properties.interestedLeadsLength", { length: p.interested_leads.length })} padded={false}>
             {p.interested_leads.length === 0 ? (
-              <EmptyState title="No leads matched yet" description="Add this property from a lead profile." />
+              <EmptyState title={t("properties.noLeadsMatchedYet")} description={t("properties.addPropertyFromLeadProfile")} />
             ) : (
               <ul className="divide-y divide-line">
                 {p.interested_leads.map((m) => (
@@ -121,7 +123,7 @@ export default function PropertyDetailPage() {
                         {m.lead.name}
                       </Link>
                       <p className="text-xs text-muted">
-                        {m.lead.phone}
+                        <Ltr>{m.lead.phone}</Ltr>
                         {m.assigned_to ? ` · ${m.assigned_to.full_name}` : ""}
                         {m.note ? ` · “${m.note}”` : ""}
                       </p>
@@ -133,9 +135,9 @@ export default function PropertyDetailPage() {
             )}
           </Card>
 
-          <Card title={`Viewings (${p.viewings.length})`} padded={false}>
+          <Card title={t("properties.viewingsLength", { length: p.viewings.length })} padded={false}>
             {p.viewings.length === 0 ? (
-              <EmptyState title="No viewings" />
+              <EmptyState title={t("properties.noViewings")} />
             ) : (
               <ul className="divide-y divide-line">
                 {p.viewings.map((v) => (
@@ -145,9 +147,9 @@ export default function PropertyDetailPage() {
             )}
           </Card>
 
-          <Card title={`Offers (${p.offers.length})`} padded={false}>
+          <Card title={t("properties.offersLength", { length: p.offers.length })} padded={false}>
             {p.offers.length === 0 ? (
-              <EmptyState title="No offers" />
+              <EmptyState title={t("properties.noOffers")} />
             ) : (
               <ul className="divide-y divide-line">
                 {p.offers.map((o) => (
@@ -167,25 +169,25 @@ export default function PropertyDetailPage() {
         </div>
 
         <div className="space-y-4">
-          <Card title="Details">
+          <Card title={t("properties.details")}>
             <dl className="grid grid-cols-2 gap-x-4 gap-y-3">
-              <Kv label="Salesperson">
+              <Kv label={t("common.salesperson")}>
                 <PersonChip name={p.assigned_to?.full_name} />
               </Kv>
-              <Kv label="Type">{PROPERTY_TYPE[p.property_type]}</Kv>
-              <Kv label="Location">{p.city}</Kv>
-              <Kv label="Status">
+              <Kv label={t("common.type")}>{enums.label("propertyType", p.property_type)}</Kv>
+              <Kv label={t("common.location")}>{p.city}</Kv>
+              <Kv label={t("common.status")}>
                 <PropertyStatusBadge status={p.status} />
               </Kv>
               <div className="col-span-2">
-                <Kv label="Internal notes">{p.description}</Kv>
+                <Kv label={t("properties.internalNotes")}>{p.description}</Kv>
               </div>
             </dl>
           </Card>
 
-          <Card title="Open deals" padded={false}>
+          <Card title={t("properties.openDeals")} padded={false}>
             {p.open_deals.length === 0 ? (
-              <EmptyState title="No open deals" />
+              <EmptyState title={t("properties.noOpenDeals")} />
             ) : (
               <ul className="divide-y divide-line">
                 {p.open_deals.map((d) => (
@@ -200,11 +202,11 @@ export default function PropertyDetailPage() {
             )}
           </Card>
 
-          <Card title={`Images (${p.images.length})`}>
+          <Card title={t("properties.imagesLength", { length: p.images.length })}>
             {p.images.length === 0 ? (
               <div className="flex flex-col items-center gap-1 py-4 text-muted">
                 <Building2 className="h-7 w-7 opacity-50" />
-                <p className="text-xs">No images uploaded</p>
+                <p className="text-xs">{t("properties.noImagesUploaded")}</p>
               </div>
             ) : (
               <div className="grid grid-cols-3 gap-2">
@@ -213,8 +215,8 @@ export default function PropertyDetailPage() {
                     {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img src={mediaUrl(img.src)} alt={img.caption || p.title} className="h-full w-full object-cover" />
                     <button
-                      className="absolute right-1 top-1 hidden rounded bg-ink/70 p-1 text-white group-hover:block"
-                      aria-label="Remove image"
+                      className="absolute end-1 top-1 hidden rounded bg-ink/70 p-1 text-white group-hover:block"
+                      aria-label={t("properties.removeImage")}
                       onClick={() => void removeImage.mutateAsync(img.id)}
                     >
                       <Trash2 className="h-3.5 w-3.5" />

@@ -1,6 +1,11 @@
 import type { Metadata, Viewport } from "next";
+import { NextIntlClientProvider } from "next-intl";
+import { getLocale, getMessages, getTranslations } from "next-intl/server";
 
-import { CompanyProvider, DEFAULT_COMPANY, type CompanyConfig } from "@/lib/company";
+import { directionFor } from "@/i18n/config";
+import { CompanyProvider } from "@/lib/company";
+import { DEFAULT_COMPANY } from "@/lib/company-defaults";
+import { getCompany } from "@/lib/company-server";
 
 import { Providers } from "./providers";
 import "./globals.css";
@@ -8,26 +13,12 @@ import "./globals.css";
 // Branding is read at request time from this instance's own backend, so ONE build serves every customer.
 export const dynamic = "force-dynamic";
 
-const API_BASE = (process.env.NEXT_PUBLIC_API_URL ?? process.env.BACKEND_INTERNAL_URL ?? "").trim().replace(/\/+$/, "") ||
-  (process.env.NODE_ENV !== "production" ? "http://localhost:8000" : "");
-
-async function loadCompany(): Promise<CompanyConfig | null> {
-  if (!API_BASE) return null;
-  try {
-    const res = await fetch(`${API_BASE}/api/config/`, { cache: "no-store", signal: AbortSignal.timeout(2500) });
-    if (!res.ok) return null;
-    const data = (await res.json()) as Partial<CompanyConfig>;
-    return { ...DEFAULT_COMPANY, ...data };
-  } catch {
-    return null; // backend unreachable: render with the defaults, the browser retries
-  }
-}
-
 export async function generateMetadata(): Promise<Metadata> {
-  const company = (await loadCompany()) ?? DEFAULT_COMPANY;
+  const company = (await getCompany()) ?? DEFAULT_COMPANY;
+  const t = await getTranslations();
   return {
     title: { default: `${company.company_name} — ${company.workspace_label}`, template: `%s · ${company.company_name}` },
-    description: "Real estate sales CRM",
+    description: t("shell.appDescription"),
     robots: { index: false, follow: false },
   };
 }
@@ -39,14 +30,17 @@ export const viewport: Viewport = {
 };
 
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
-  const company = await loadCompany();
-  const active = company ?? DEFAULT_COMPANY;
+  const company = await getCompany();
+  const locale = await getLocale(); // decided once, in src/i18n/request.ts
+  const messages = await getMessages();
   return (
-    <html lang={active.language} dir={active.direction}>
+    <html lang={locale} dir={directionFor(locale)}>
       <body>
-        <CompanyProvider initial={company}>
-          <Providers>{children}</Providers>
-        </CompanyProvider>
+        <NextIntlClientProvider locale={locale} messages={messages}>
+          <CompanyProvider initial={company}>
+            <Providers>{children}</Providers>
+          </CompanyProvider>
+        </NextIntlClientProvider>
       </body>
     </html>
   );

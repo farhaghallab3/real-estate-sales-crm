@@ -6,12 +6,15 @@ import { Button } from "@/components/ui/button";
 import { Field, FormError, Input, Select, Textarea } from "@/components/ui/field";
 import { Modal } from "@/components/ui/modal";
 import { useToast } from "@/components/ui/toast";
-import { api, ApiError } from "@/lib/api";
-import { LEAD_STATUS, optionsOf } from "@/lib/constants";
+import { api } from "@/lib/api";
+
 import { useApiMutation } from "@/lib/queries";
 import type { Lead, LeadMini, LeadProperty, LeadStatus, MatchStatus } from "@/types";
 
 import { UserSelect } from "./pickers";
+import { useTranslations } from "next-intl";
+import { useEnums } from "@/lib/enums";
+import { useApiErrors } from "@/lib/use-api-errors";
 
 export function ChangeStatusModal({
   lead,
@@ -20,6 +23,9 @@ export function ChangeStatusModal({
   lead: Pick<Lead, "id" | "name" | "status"> | null;
   onClose: () => void;
 }) {
+  const enums = useEnums();
+  const t = useTranslations();
+  const { errorText } = useApiErrors();
   const toast = useToast();
   const [status, setStatus] = useState<LeadStatus>("new");
   const [reason, setReason] = useState("");
@@ -45,11 +51,11 @@ export function ChangeStatusModal({
       open={Boolean(lead)}
       onClose={onClose}
       size="sm"
-      title="Change status"
+      title={t("leads.changeStatus")}
       description={lead?.name}
       footer={
         <>
-          <Button onClick={onClose}>Cancel</Button>
+          <Button onClick={onClose}>{t("common.cancel")}</Button>
           <Button
             variant="primary"
             loading={save.isPending}
@@ -57,23 +63,22 @@ export function ChangeStatusModal({
             onClick={async () => {
               try {
                 await save.mutateAsync();
-                toast.success("Status updated");
+                toast.success(t("leads.statusUpdated"));
                 onClose();
               } catch (e) {
-                setError(e instanceof ApiError ? e.message : "Could not update status");
+                setError(errorText(e, t("leads.couldNotUpdateStatus")));
               }
             }}
           >
-            Update
-          </Button>
+            {t("leads.update")}</Button>
         </>
       }
     >
       <div className="space-y-3">
         <FormError message={error} />
-        <Field label="Status">
+        <Field label={t("common.status")}>
           <Select value={status} onChange={(e) => setStatus(e.target.value as LeadStatus)}>
-            {optionsOf(LEAD_STATUS).map((o) => (
+            {enums.options("leadStatus").map((o) => (
               <option key={o.value} value={o.value}>
                 {o.label}
               </option>
@@ -81,8 +86,8 @@ export function ChangeStatusModal({
           </Select>
         </Field>
         {status === "lost" && (
-          <Field label="Lost reason">
-            <Input value={reason} onChange={(e) => setReason(e.target.value)} placeholder="e.g. Bought elsewhere" />
+          <Field label={t("leads.lostReason")}>
+            <Input value={reason} onChange={(e) => setReason(e.target.value)} placeholder={t("leads.eGBoughtElsewhere")} />
           </Field>
         )}
       </div>
@@ -97,6 +102,8 @@ export function AssignModal({
   lead: Pick<Lead, "id" | "name" | "assigned_to"> | null;
   onClose: () => void;
 }) {
+  const t = useTranslations();
+  const { errorText } = useApiErrors();
   const toast = useToast();
   const [assignee, setAssignee] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -117,35 +124,34 @@ export function AssignModal({
       open={Boolean(lead)}
       onClose={onClose}
       size="sm"
-      title="Assign salesperson"
+      title={t("leads.assignSalesperson")}
       description={lead?.name}
       footer={
         <>
-          <Button onClick={onClose}>Cancel</Button>
+          <Button onClick={onClose}>{t("common.cancel")}</Button>
           <Button
             variant="primary"
             loading={save.isPending}
             onClick={async () => {
               try {
                 await save.mutateAsync();
-                toast.success("Lead assigned");
+                toast.success(t("leads.leadAssigned"));
                 onClose();
               } catch (e) {
-                setError(e instanceof ApiError ? e.message : "Could not assign lead");
+                setError(errorText(e, t("leads.couldNotAssignLead")));
               }
             }}
           >
-            Assign
-          </Button>
+            {t("leads.assign")}</Button>
         </>
       }
     >
       <div className="space-y-3">
         <FormError message={error} />
-        <Field label="Salesperson">
+        <Field label={t("common.salesperson")}>
           <UserSelect value={assignee} onChange={setAssignee} />
         </Field>
-        <p className="text-xs text-muted">The new owner is notified and sees the lead in their workspace.</p>
+        <p className="text-xs text-muted">{t("leads.newOwnerNotifiedSeesLead")}</p>
       </div>
     </Modal>
   );
@@ -160,6 +166,8 @@ export function AddNoteModal({
   open: boolean;
   onClose: () => void;
 }) {
+  const t = useTranslations();
+  const { errorText } = useApiErrors();
   const toast = useToast();
   const [body, setBody] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -177,11 +185,11 @@ export function AddNoteModal({
     <Modal
       open={open}
       onClose={onClose}
-      title="Add note"
+      title={t("leads.addNote")}
       description={lead.name}
       footer={
         <>
-          <Button onClick={onClose}>Cancel</Button>
+          <Button onClick={onClose}>{t("common.cancel")}</Button>
           <Button
             variant="primary"
             loading={save.isPending}
@@ -189,15 +197,14 @@ export function AddNoteModal({
             onClick={async () => {
               try {
                 await save.mutateAsync();
-                toast.success("Note added");
+                toast.success(t("leads.noteAdded"));
                 onClose();
               } catch (e) {
-                setError(e instanceof ApiError ? e.message : "Could not save note");
+                setError(errorText(e, t("leads.couldNotSaveNote")));
               }
             }}
           >
-            Save note
-          </Button>
+            {t("leads.saveNote")}</Button>
         </>
       }
     >
@@ -208,7 +215,7 @@ export function AddNoteModal({
           rows={5}
           value={body}
           onChange={(e) => setBody(e.target.value)}
-          placeholder="Call summary, preferences, objections…"
+          placeholder={t("leads.callSummaryPreferencesObjections")}
         />
       </div>
     </Modal>
@@ -225,6 +232,8 @@ export function MatchStatusModal({
   status: MatchStatus | null;
   onClose: () => void;
 }) {
+  const t = useTranslations();
+  const { errorText } = useApiErrors();
   const toast = useToast();
   const [note, setNote] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -243,33 +252,32 @@ export function MatchStatusModal({
       open={Boolean(match && status)}
       onClose={onClose}
       size="sm"
-      title="Reject property"
+      title={t("leads.rejectProperty")}
       description={match?.property.title}
       footer={
         <>
-          <Button onClick={onClose}>Cancel</Button>
+          <Button onClick={onClose}>{t("common.cancel")}</Button>
           <Button
             variant="danger"
             loading={save.isPending}
             onClick={async () => {
               try {
                 await save.mutateAsync();
-                toast.success("Property marked as rejected");
+                toast.success(t("leads.propertyMarkedAsRejected"));
                 onClose();
               } catch (e) {
-                setError(e instanceof ApiError ? e.message : "Could not update");
+                setError(errorText(e, t("common.couldNotUpdate")));
               }
             }}
           >
-            Reject
-          </Button>
+            {t("leads.reject")}</Button>
         </>
       }
     >
       <div className="space-y-3">
         <FormError message={error} />
-        <Field label="Why did the client reject it?">
-          <Input autoFocus value={note} onChange={(e) => setNote(e.target.value)} placeholder="e.g. Too expensive" />
+        <Field label={t("leads.whyDidClientRejectIt")}>
+          <Input autoFocus value={note} onChange={(e) => setNote(e.target.value)} placeholder={t("leads.eGTooExpensive")} />
         </Field>
       </div>
     </Modal>

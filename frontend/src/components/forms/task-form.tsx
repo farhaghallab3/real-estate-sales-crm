@@ -8,14 +8,17 @@ import { Button } from "@/components/ui/button";
 import { Field, FormError, Input, Select, Textarea } from "@/components/ui/field";
 import { Modal } from "@/components/ui/modal";
 import { useToast } from "@/components/ui/toast";
-import { api, ApiError } from "@/lib/api";
+import { api } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
-import { optionsOf, TASK_TYPE } from "@/lib/constants";
+
 import { fromLocalInput, toLocalInput } from "@/lib/format";
 import { useApiMutation } from "@/lib/queries";
 import type { LeadMini, PropertyMini, Task, TaskType } from "@/types";
 
 import { LeadPicker, PropertyPicker, UserSelect } from "./pickers";
+import { useTranslations } from "next-intl";
+import { useEnums } from "@/lib/enums";
+import { useApiErrors } from "@/lib/use-api-errors";
 
 interface Preset {
   lead?: LeadMini | null;
@@ -48,6 +51,9 @@ export function TaskFormModal({
   preset?: Preset;
   task?: Task | null;
 }) {
+  const enums = useEnums();
+  const t = useTranslations();
+  const { errorText } = useApiErrors();
   const { isManager, user } = useAuth();
   const toast = useToast();
   const [formError, setFormError] = useState<string | null>(null);
@@ -95,10 +101,10 @@ export function TaskFormModal({
     setFormError(null);
     try {
       await save.mutateAsync(v);
-      toast.success(task ? "Task updated" : "Task created");
+      toast.success(task ? t("tasks.taskUpdated") : t("tasks.taskCreated"));
       onClose();
     } catch (e) {
-      setFormError(e instanceof ApiError ? e.message : "Could not save the task.");
+      setFormError(errorText(e, t("tasks.couldNotSaveTask")));
     }
   });
 
@@ -108,12 +114,12 @@ export function TaskFormModal({
     <Modal
       open={open}
       onClose={onClose}
-      title={task ? "Edit task" : "Create task"}
+      title={task ? t("tasks.editTask") : t("common.createTask")}
       footer={
         <>
-          <Button onClick={onClose}>Cancel</Button>
+          <Button onClick={onClose}>{t("common.cancel")}</Button>
           <Button variant="primary" loading={save.isPending} onClick={onSubmit}>
-            {task ? "Save" : "Create task"}
+            {task ? t("common.save") : t("common.createTask")}
           </Button>
         </>
       }
@@ -122,36 +128,36 @@ export function TaskFormModal({
         <div className="sm:col-span-2">
           <FormError message={formError} />
         </div>
-        <Field label="Title" required className="sm:col-span-2" error={errors.title?.message}>
-          <Input autoFocus placeholder="e.g. Call back about pricing" {...register("title", { required: "Title is required" })} />
+        <Field label={t("common.title")} required className="sm:col-span-2" error={errors.title?.message}>
+          <Input autoFocus placeholder={t("tasks.eGCallBackAbout")} {...register("title", { required: t("common.titleRequired") })} />
         </Field>
-        <Field label="Type">
+        <Field label={t("common.type")}>
           <Select {...register("type")}>
-            {optionsOf(TASK_TYPE).map((o) => (
+            {enums.options("taskType").map((o) => (
               <option key={o.value} value={o.value}>
                 {o.label}
               </option>
             ))}
           </Select>
         </Field>
-        <Field label="Due" required error={errors.due_at?.message}>
-          <Input type="datetime-local" {...register("due_at", { required: "Due date is required" })} />
+        <Field label={t("tasks.due")} required error={errors.due_at?.message}>
+          <Input type="datetime-local" {...register("due_at", { required: t("tasks.dueDateRequired") })} />
         </Field>
-        <Field label="Client / lead" className="sm:col-span-2">
+        <Field label={t("tasks.clientLead")} className="sm:col-span-2">
           <LeadPicker
             label={lead?.name ?? null}
             disabled={presetLead}
             onChange={(l) => setLead(l ? { id: l.id, name: l.name } : null)}
           />
         </Field>
-        <Field label="Property" className="sm:col-span-2">
+        <Field label={t("common.property")} className="sm:col-span-2">
           <PropertyPicker
             label={property?.title ?? null}
             onChange={(p) => setProperty(p ? { id: p.id, title: p.title } : null)}
           />
         </Field>
         {isManager && (
-          <Field label="Assigned to" className="sm:col-span-2">
+          <Field label={t("tasks.assignedTo")} className="sm:col-span-2">
             <Controller
               control={control}
               name="assigned_to_id"
@@ -159,7 +165,7 @@ export function TaskFormModal({
             />
           </Field>
         )}
-        <Field label="Notes" className="sm:col-span-2">
+        <Field label={t("common.notes")} className="sm:col-span-2">
           <Textarea rows={2} {...register("description")} />
         </Field>
       </form>

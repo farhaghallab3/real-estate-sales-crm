@@ -25,16 +25,22 @@ import {
   Th,
 } from "@/components/ui/primitives";
 import { useAuth } from "@/lib/auth";
-import { DEAL_STAGE, optionsOf } from "@/lib/constants";
-import { formatDate, relative } from "@/lib/format";
-import { useMoney } from "@/lib/company";
+
+import { useMoney, useFormat } from "@/lib/company";
 import { useDeals } from "@/lib/queries";
 import { useUrlState } from "@/lib/use-url-state";
+import { useTranslations } from "next-intl";
+import { useEnums } from "@/lib/enums";
+import { useApiErrors } from "@/lib/use-api-errors";
 
 const PAGE_SIZE = 20;
 
 export default function DealsPage() {
+  const enums = useEnums();
+  const t = useTranslations();
+  const { errorText } = useApiErrors();
   const { money } = useMoney();
+  const { formatDate, relative } = useFormat();
   const { isManager } = useAuth();
   const [f, setF] = useUrlState({ q: "", state: "open", stage: "", assigned: "", sort: "-updated_at", page: "1" });
   const [offerOpen, setOfferOpen] = useState(false);
@@ -52,12 +58,11 @@ export default function DealsPage() {
   return (
     <div>
       <PageHeader
-        title="Deals"
-        description="Every opportunity from first interest to closing."
+        title={t("deals.deals")}
+        description={t("deals.everyOpportunityFromFirstInterest")}
         actions={
           <Button variant="primary" icon={<Plus className="h-4 w-4" />} onClick={() => setOfferOpen(true)}>
-            Create offer
-          </Button>
+            {t("common.createOffer")}</Button>
         }
       />
       <Card padded={false}>
@@ -66,17 +71,17 @@ export default function DealsPage() {
             value={f.state}
             onChange={(v) => setF({ state: v, stage: "" })}
             options={[
-              { value: "open", label: "Open" },
-              { value: "closed", label: "Closed" },
-              { value: "lost", label: "Lost" },
-              { value: "all", label: "All" },
+              { value: "open", label: t("reports.open") },
+              { value: "closed", label: t("common.closed") },
+              { value: "lost", label: t("reports.lost") },
+              { value: "all", label: t("common.all") },
             ]}
           />
           <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-4">
-            <SearchInput value={f.q} onChange={(v) => setF({ q: v })} placeholder="Search client or property…" />
-            <Select value={f.stage} onChange={(e) => setF({ stage: e.target.value })} aria-label="Stage">
-              <option value="">All stages</option>
-              {optionsOf(DEAL_STAGE).map((o) => (
+            <SearchInput value={f.q} onChange={(v) => setF({ q: v })} placeholder={t("common.searchClientOrProperty")} />
+            <Select value={f.stage} onChange={(e) => setF({ stage: e.target.value })} aria-label={t("deals.stage")}>
+              <option value="">{t("deals.allStages")}</option>
+              {enums.options("dealStage").map((o) => (
                 <option key={o.value} value={o.value}>
                   {o.label}
                 </option>
@@ -86,7 +91,8 @@ export default function DealsPage() {
               <UserSelect
                 value={f.assigned ? Number(f.assigned) : null}
                 onChange={(id) => setF({ assigned: id ? String(id) : "" })}
-                emptyLabel="All salespeople"
+                emptyLabel={t("common.allSalespeople")}
+                aria-label={t("common.salesperson")}
               />
             )}
           </div>
@@ -94,22 +100,22 @@ export default function DealsPage() {
         {list.isLoading ? (
           <TableSkeleton cols={7} />
         ) : list.error ? (
-          <ErrorState message={(list.error as Error).message} onRetry={() => void list.refetch()} />
+          <ErrorState message={errorText(list.error)} onRetry={() => void list.refetch()} />
         ) : list.data!.results.length === 0 ? (
-          <EmptyState title="No deals found" description="Deals appear when a client shows interest in a property." />
+          <EmptyState title={t("deals.noDealsFound")} description={t("deals.dealsAppearWhenClientShows")} />
         ) : (
           <TableWrap>
             <Table>
               <thead>
                 <tr>
-                  <Th>Client</Th>
-                  <Th>Property</Th>
-                  <Th>Stage</Th>
-                  <Th sortKey="offer_amount" sort={f.sort} onSort={onSort} className="text-right">Offer</Th>
-                  <Th className="text-right">Sale price</Th>
-                  <Th sortKey="expected_close_date" sort={f.sort} onSort={onSort}>Expected close</Th>
-                  <Th>Salesperson</Th>
-                  <Th sortKey="updated_at" sort={f.sort} onSort={onSort}>Updated</Th>
+                  <Th>{t("common.client")}</Th>
+                  <Th>{t("common.property")}</Th>
+                  <Th>{t("deals.stage")}</Th>
+                  <Th sortKey="offer_amount" sort={f.sort} onSort={onSort} className="text-end">{t("common.offer")}</Th>
+                  <Th className="text-end">{t("common.salePrice")}</Th>
+                  <Th sortKey="expected_close_date" sort={f.sort} onSort={onSort}>{t("common.expectedClose")}</Th>
+                  <Th>{t("common.salesperson")}</Th>
+                  <Th sortKey="updated_at" sort={f.sort} onSort={onSort}>{t("deals.updated")}</Th>
                 </tr>
               </thead>
               <tbody>
@@ -124,8 +130,8 @@ export default function DealsPage() {
                     <Td>
                       <DealStageBadge stage={d.stage} />
                     </Td>
-                    <Td className="tabular text-right">{money(d.offer_amount)}</Td>
-                    <Td className="tabular text-right">{money(d.sale_price)}</Td>
+                    <Td className="tabular text-end">{money(d.offer_amount)}</Td>
+                    <Td className="tabular text-end">{money(d.sale_price)}</Td>
                     <Td className="whitespace-nowrap text-muted">{d.expected_close_date ? formatDate(d.expected_close_date) : "—"}</Td>
                     <Td className="whitespace-nowrap">
                       <PersonChip name={d.assigned_to?.full_name} />

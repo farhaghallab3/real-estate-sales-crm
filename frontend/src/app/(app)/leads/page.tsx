@@ -24,14 +24,16 @@ import {
   TableWrap,
   Td,
   Th,
-} from "@/components/ui/primitives";
+  Ltr,} from "@/components/ui/primitives";
 import { useAuth } from "@/lib/auth";
-import { LEAD_SOURCE, LEAD_STATUS, optionsOf } from "@/lib/constants";
-import { formatDate, formatWhen, relative } from "@/lib/format";
-import { useMoney } from "@/lib/company";
+
+import { useMoney, useFormat } from "@/lib/company";
 import { useLeads, useLeadStatusCounts } from "@/lib/queries";
 import { useUrlState } from "@/lib/use-url-state";
 import type { Lead } from "@/types";
+import { useTranslations } from "next-intl";
+import { useEnums } from "@/lib/enums";
+import { useApiErrors } from "@/lib/use-api-errors";
 
 const PAGE_SIZE = 20;
 const DEFAULTS = {
@@ -45,7 +47,11 @@ const DEFAULTS = {
 };
 
 export default function LeadsPage() {
+  const enums = useEnums();
+  const t = useTranslations();
+  const { errorText } = useApiErrors();
   const { money } = useMoney();
+  const { formatDate, formatWhen, relative } = useFormat();
   const { isManager } = useAuth();
   const [f, setF] = useUrlState(DEFAULTS);
   const [addOpen, setAddOpen] = useState(false);
@@ -61,19 +67,18 @@ export default function LeadsPage() {
   const anyFilter = Boolean(f.q || f.status || f.source || f.assigned || f.location);
 
   const pillOptions = [
-    { value: "", label: "All", count: counts.data?.all },
-    ...optionsOf(LEAD_STATUS).map((o) => ({ ...o, count: counts.data?.[o.value] })),
+    { value: "", label: t("common.all"), count: counts.data?.all },
+    ...enums.options("leadStatus").map((o) => ({ ...o, count: counts.data?.[o.value] })),
   ];
 
   return (
     <div>
       <PageHeader
-        title="Leads & clients"
-        description={isManager ? "All leads across the team." : "Leads assigned to you."}
+        title={t("leads.leadsClients")}
+        description={isManager ? t("leads.allLeadsAcrossTeam") : t("leads.leadsAssigned")}
         actions={
           <Button variant="primary" icon={<Plus className="h-4 w-4" />} onClick={() => setAddOpen(true)}>
-            Add lead
-          </Button>
+            {t("common.addLead")}</Button>
         }
       />
 
@@ -84,12 +89,12 @@ export default function LeadsPage() {
             <SearchInput
               value={f.q}
               onChange={(v) => setF({ q: v })}
-              placeholder="Search name, phone, email…"
+              placeholder={t("leads.searchNamePhoneEmail")}
               className="lg:col-span-2"
             />
-            <Select value={f.source} onChange={(e) => setF({ source: e.target.value })} aria-label="Source">
-              <option value="">All sources</option>
-              {optionsOf(LEAD_SOURCE).map((o) => (
+            <Select value={f.source} onChange={(e) => setF({ source: e.target.value })} aria-label={t("common.source")}>
+              <option value="">{t("common.allSources")}</option>
+              {enums.options("leadSource").map((o) => (
                 <option key={o.value} value={o.value}>
                   {o.label}
                 </option>
@@ -99,18 +104,18 @@ export default function LeadsPage() {
               <UserSelect
                 value={f.assigned ? Number(f.assigned) : null}
                 onChange={(id) => setF({ assigned: id ? String(id) : "" })}
-                emptyLabel="All salespeople"
-                aria-label="Salesperson"
+                emptyLabel={t("common.allSalespeople")}
+                aria-label={t("common.salesperson")}
               />
             ) : (
               <span />
             )}
             <Input
-              placeholder="Location"
+              placeholder={t("common.location")}
               defaultValue={f.location}
               onBlur={(e) => e.target.value !== f.location && setF({ location: e.target.value })}
               onKeyDown={(e) => e.key === "Enter" && setF({ location: e.currentTarget.value })}
-              aria-label="Location"
+              aria-label={t("common.location")}
             />
           </div>
         </div>
@@ -118,18 +123,17 @@ export default function LeadsPage() {
         {leads.isLoading ? (
           <TableSkeleton cols={8} />
         ) : leads.error ? (
-          <ErrorState message={(leads.error as Error).message} onRetry={() => void leads.refetch()} />
+          <ErrorState message={errorText(leads.error)} onRetry={() => void leads.refetch()} />
         ) : leads.data!.results.length === 0 ? (
           <EmptyState
-            title={anyFilter ? "No leads match these filters" : "No leads yet"}
-            description={anyFilter ? "Try clearing a filter." : "Add your first lead to start the workflow."}
+            title={anyFilter ? t("leads.noLeadsMatchTheseFilters") : t("common.noLeadsYet")}
+            description={anyFilter ? t("leads.tryClearingFilter") : t("leads.addFirstLeadStartWorkflow")}
             action={
               anyFilter ? (
-                <Button onClick={() => setF({ q: "", status: "", source: "", assigned: "", location: "" })}>Clear filters</Button>
+                <Button onClick={() => setF({ q: "", status: "", source: "", assigned: "", location: "" })}>{t("common.clearFilters")}</Button>
               ) : (
                 <Button variant="primary" onClick={() => setAddOpen(true)}>
-                  Add lead
-                </Button>
+                  {t("common.addLead")}</Button>
               )
             }
           />
@@ -138,17 +142,17 @@ export default function LeadsPage() {
             <Table>
               <thead>
                 <tr>
-                  <Th sortKey="first_name" sort={f.sort} onSort={onSort}>Client</Th>
-                  <Th>Phone</Th>
-                  <Th>Email</Th>
-                  <Th sortKey="source" sort={f.sort} onSort={onSort}>Source</Th>
-                  <Th sortKey="budget" sort={f.sort} onSort={onSort} className="text-right">Budget</Th>
-                  <Th sortKey="preferred_location" sort={f.sort} onSort={onSort}>Location</Th>
-                  <Th sortKey="status" sort={f.sort} onSort={onSort}>Status</Th>
-                  <Th>Salesperson</Th>
-                  <Th sortKey="last_activity_at" sort={f.sort} onSort={onSort}>Last activity</Th>
-                  <Th sortKey="next_follow_up" sort={f.sort} onSort={onSort}>Next follow-up</Th>
-                  <Th sortKey="created_at" sort={f.sort} onSort={onSort}>Created</Th>
+                  <Th sortKey="first_name" sort={f.sort} onSort={onSort}>{t("common.client")}</Th>
+                  <Th>{t("common.phone")}</Th>
+                  <Th>{t("common.email")}</Th>
+                  <Th sortKey="source" sort={f.sort} onSort={onSort}>{t("common.source")}</Th>
+                  <Th sortKey="budget" sort={f.sort} onSort={onSort} className="text-end">{t("leads.budget")}</Th>
+                  <Th sortKey="preferred_location" sort={f.sort} onSort={onSort}>{t("common.location")}</Th>
+                  <Th sortKey="status" sort={f.sort} onSort={onSort}>{t("common.status")}</Th>
+                  <Th>{t("common.salesperson")}</Th>
+                  <Th sortKey="last_activity_at" sort={f.sort} onSort={onSort}>{t("leads.lastActivity")}</Th>
+                  <Th sortKey="next_follow_up" sort={f.sort} onSort={onSort}>{t("leads.nextFollowUp")}</Th>
+                  <Th sortKey="created_at" sort={f.sort} onSort={onSort}>{t("common.created")}</Th>
                   <Th className="w-24" />
                 </tr>
               </thead>
@@ -162,10 +166,10 @@ export default function LeadsPage() {
                           {l.name}
                         </Link>
                       </Td>
-                      <Td className="tabular whitespace-nowrap">{l.phone}</Td>
-                      <Td className="max-w-[200px] truncate text-muted">{l.email || "—"}</Td>
-                      <Td className="whitespace-nowrap text-muted">{LEAD_SOURCE[l.source]}</Td>
-                      <Td className="tabular text-right">{money(l.budget)}</Td>
+                      <Td className="tabular whitespace-nowrap"><Ltr>{l.phone}</Ltr></Td>
+                      <Td className="max-w-[200px] truncate text-muted">{l.email ? <Ltr>{l.email}</Ltr> : "—"}</Td>
+                      <Td className="whitespace-nowrap text-muted">{enums.label("leadSource", l.source)}</Td>
+                      <Td className="tabular text-end">{money(l.budget)}</Td>
                       <Td className="whitespace-nowrap">{l.preferred_location || "—"}</Td>
                       <Td>
                         <LeadStatusBadge status={l.status} />
@@ -180,14 +184,14 @@ export default function LeadsPage() {
                       <Td className="whitespace-nowrap text-muted">{formatDate(l.created_at)}</Td>
                       <Td>
                         <div className="flex justify-end gap-0.5 opacity-60 transition-opacity group-hover:opacity-100">
-                          <Button variant="ghost" size="sm" className="h-7 w-7 px-0" onClick={() => setEditing(l)} aria-label={`Edit ${l.name}`} title="Edit">
+                          <Button variant="ghost" size="sm" className="h-7 w-7 px-0" onClick={() => setEditing(l)} aria-label={t("leads.editName", { name: l.name })} title={t("common.edit")}>
                             <Pencil className="h-3.5 w-3.5" />
                           </Button>
-                          <Button variant="ghost" size="sm" className="h-7 w-7 px-0" onClick={() => setStatusFor(l)} aria-label={`Change status of ${l.name}`} title="Change status">
+                          <Button variant="ghost" size="sm" className="h-7 w-7 px-0" onClick={() => setStatusFor(l)} aria-label={t("leads.changeStatusName", { name: l.name })} title={t("leads.changeStatus")}>
                             <ArrowRightLeft className="h-3.5 w-3.5" />
                           </Button>
                           {isManager && (
-                            <Button variant="ghost" size="sm" className="h-7 w-7 px-0" onClick={() => setAssignFor(l)} aria-label={`Assign ${l.name}`} title="Assign">
+                            <Button variant="ghost" size="sm" className="h-7 w-7 px-0" onClick={() => setAssignFor(l)} aria-label={t("leads.assignName", { name: l.name })} title={t("leads.assign")}>
                               <UserCog className="h-3.5 w-3.5" />
                             </Button>
                           )}

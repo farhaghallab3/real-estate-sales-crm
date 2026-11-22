@@ -18,16 +18,22 @@ import {
   Td,
   Th,
 } from "@/components/ui/primitives";
-import { DEAL_STAGE, LEAD_SOURCE, LEAD_STATUS, optionsOf } from "@/lib/constants";
+
 import { pct } from "@/lib/format";
 import { useMoney } from "@/lib/company";
 import { useAnalytics, useCities } from "@/lib/queries";
 import { useUrlState } from "@/lib/use-url-state";
 import type { LeadStatus } from "@/types";
+import { useTranslations } from "next-intl";
+import { useEnums } from "@/lib/enums";
+import { useApiErrors } from "@/lib/use-api-errors";
 
 const FUNNEL: LeadStatus[] = ["new", "contacted", "qualified", "viewing", "offer_made", "closed"];
 
 export default function ReportsPage() {
+  const enums = useEnums();
+  const t = useTranslations();
+  const { errorText } = useApiErrors();
   const { money, moneyCompact } = useMoney();
   const [f, setF] = useUrlState({
     from: "",
@@ -57,36 +63,36 @@ export default function ReportsPage() {
 
   return (
     <div className="space-y-4">
-      <PageHeader title="Reports" description="Sales performance across the funnel. Metrics respect the filters below." />
+      <PageHeader title={t("reports.reports")} description={t("reports.salesPerformanceAcrossFunnelMetrics")} />
 
       <Card>
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-7">
-          <Field label="From">
+          <Field label={t("reports.from")}>
             <Input type="date" value={f.from} onChange={(e) => setF({ from: e.target.value })} />
           </Field>
-          <Field label="To">
+          <Field label={t("reports.to")}>
             <Input type="date" value={f.to} onChange={(e) => setF({ to: e.target.value })} />
           </Field>
-          <Field label="Salesperson">
+          <Field label={t("common.salesperson")}>
             <UserSelect
               value={f.sp ? Number(f.sp) : null}
               onChange={(id) => setF({ sp: id ? String(id) : "" })}
-              emptyLabel="Everyone"
+              emptyLabel={t("reports.everyone")}
             />
           </Field>
-          <Field label="Lead source">
+          <Field label={t("common.leadSource")}>
             <Select value={f.source} onChange={(e) => setF({ source: e.target.value })}>
-              <option value="">All sources</option>
-              {optionsOf(LEAD_SOURCE).map((o) => (
+              <option value="">{t("common.allSources")}</option>
+              {enums.options("leadSource").map((o) => (
                 <option key={o.value} value={o.value}>
                   {o.label}
                 </option>
               ))}
             </Select>
           </Field>
-          <Field label="Location">
+          <Field label={t("common.location")}>
             <Select value={f.location} onChange={(e) => setF({ location: e.target.value })}>
-              <option value="">All locations</option>
+              <option value="">{t("common.allLocations")}</option>
               {cities.data?.map((c) => (
                 <option key={c} value={c}>
                   {c}
@@ -94,21 +100,21 @@ export default function ReportsPage() {
               ))}
             </Select>
           </Field>
-          <Field label="Deal status">
+          <Field label={t("reports.dealStatus")}>
             <Select value={f.deal_status} onChange={(e) => setF({ deal_status: e.target.value })}>
-              <option value="">Any</option>
-              <option value="open">Open</option>
-              {optionsOf(DEAL_STAGE).map((o) => (
+              <option value="">{t("reports.any")}</option>
+              <option value="open">{t("reports.open")}</option>
+              {enums.options("dealStage").map((o) => (
                 <option key={o.value} value={o.value}>
                   {o.label}
                 </option>
               ))}
             </Select>
           </Field>
-          <Field label="Property">
+          <Field label={t("common.property")}>
             <PropertyPicker
               label={propLabel}
-              placeholder="Any property"
+              placeholder={t("reports.anyProperty")}
               onChange={(p) => {
                 setPropLabel(p?.title ?? null);
                 setF({ prop: p ? String(p.id) : "" });
@@ -125,14 +131,13 @@ export default function ReportsPage() {
                 setF({ from: "", to: "", sp: "", prop: "", source: "", location: "", deal_status: "" });
               }}
             >
-              Reset filters
-            </Button>
+              {t("reports.resetFilters")}</Button>
           </div>
         )}
       </Card>
 
       {q.error ? (
-        <ErrorState message={(q.error as Error).message} onRetry={() => void q.refetch()} />
+        <ErrorState message={errorText(q.error)} onRetry={() => void q.refetch()} />
       ) : (
         <>
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 xl:grid-cols-8">
@@ -140,20 +145,20 @@ export default function ReportsPage() {
               ? Array.from({ length: 8 }).map((_, i) => <Skeleton key={i} className="h-[74px]" />)
               : (
                 <>
-                  <Metric label="Leads" value={d.metrics.total_leads} />
-                  <Metric label="Qualified" value={d.metrics.qualified_leads} />
-                  <Metric label="Viewings" value={d.metrics.viewings} />
-                  <Metric label="Offers" value={d.metrics.offers} />
-                  <Metric label="Closed deals" value={d.metrics.closed_deals} />
-                  <Metric label="Sales value" value={moneyCompact(d.metrics.sales_value)} accent />
-                  <Metric label="Commissions" value={moneyCompact(d.metrics.commission)} accent />
-                  <Metric label="Conversion" value={pct(d.metrics.conversion_rate)} />
+                  <Metric label={t("common.leads")} value={d.metrics.total_leads} />
+                  <Metric label={t("reports.qualified")} value={d.metrics.qualified_leads} />
+                  <Metric label={t("common.viewings")} value={d.metrics.viewings} />
+                  <Metric label={t("common.offers")} value={d.metrics.offers} />
+                  <Metric label={t("common.closedDeals")} value={d.metrics.closed_deals} />
+                  <Metric label={t("common.salesValue")} value={moneyCompact(d.metrics.sales_value)} accent />
+                  <Metric label={t("common.commissions")} value={moneyCompact(d.metrics.commission)} accent />
+                  <Metric label={t("reports.conversion")} value={pct(d.metrics.conversion_rate)} />
                 </>
               )}
           </div>
 
           <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
-            <Card title="Lead funnel" padded>
+            <Card title={t("reports.leadFunnel")} padded>
               {!d ? (
                 <Skeleton className="h-44" />
               ) : (
@@ -162,30 +167,30 @@ export default function ReportsPage() {
                     const n = d.funnel[s] ?? 0;
                     return (
                       <li key={s} className="grid grid-cols-[6.5rem_1fr_2.5rem] items-center gap-3 text-sm">
-                        <span className="text-muted">{LEAD_STATUS[s].label}</span>
+                        <span className="text-muted">{enums.label("leadStatus", s)}</span>
                         <div className="h-5 overflow-hidden rounded bg-canvas">
                           <div className="h-full rounded bg-brand" style={{ width: `${(n / maxFunnel) * 100}%`, minWidth: n ? 4 : 0 }} />
                         </div>
-                        <span className="tabular text-right font-medium">{n}</span>
+                        <span className="tabular text-end font-medium">{n}</span>
                       </li>
                     );
                   })}
                   <li className="grid grid-cols-[6.5rem_1fr_2.5rem] items-center gap-3 text-sm">
-                    <span className="text-muted">Lost</span>
+                    <span className="text-muted">{t("reports.lost")}</span>
                     <div className="h-5 overflow-hidden rounded bg-canvas">
                       <div className="h-full rounded bg-bad-fg/60" style={{ width: `${((d.funnel.lost ?? 0) / maxFunnel) * 100}%` }} />
                     </div>
-                    <span className="tabular text-right font-medium">{d.funnel.lost ?? 0}</span>
+                    <span className="tabular text-end font-medium">{d.funnel.lost ?? 0}</span>
                   </li>
                 </ul>
               )}
             </Card>
 
-            <Card title="Monthly leads & sales value">
+            <Card title={t("reports.monthlyLeadsSalesValue")}>
               {!d ? (
                 <Skeleton className="h-44" />
               ) : d.monthly.length === 0 ? (
-                <EmptyState title="No data for this period" />
+                <EmptyState title={t("reports.noDataPeriod")} />
               ) : (
                 <div>
                   <div className="flex h-40 items-end gap-3">
@@ -209,11 +214,9 @@ export default function ReportsPage() {
                   </div>
                   <div className="mt-3 flex gap-4 text-xs text-muted">
                     <span className="inline-flex items-center gap-1.5">
-                      <span className="h-2.5 w-2.5 rounded-sm bg-brand/30" /> Leads
-                    </span>
+                      <span className="h-2.5 w-2.5 rounded-sm bg-brand/30" /> {" "}{t("common.leads")}</span>
                     <span className="inline-flex items-center gap-1.5">
-                      <span className="h-2.5 w-2.5 rounded-sm bg-accent" /> Sales value
-                    </span>
+                      <span className="h-2.5 w-2.5 rounded-sm bg-accent" /> {" "}{t("common.salesValue")}</span>
                   </div>
                 </div>
               )}
@@ -221,7 +224,7 @@ export default function ReportsPage() {
           </div>
 
           <div className="grid grid-cols-1 gap-4 xl:grid-cols-3">
-            <Card title="Leads by source" padded={false} className="xl:col-span-1">
+            <Card title={t("reports.leadsBySource")} padded={false} className="xl:col-span-1">
               {!d ? (
                 <div className="p-4">
                   <Skeleton className="h-40" />
@@ -231,10 +234,10 @@ export default function ReportsPage() {
                   <Table>
                     <thead>
                       <tr>
-                        <Th>Source</Th>
-                        <Th className="text-right">Leads</Th>
-                        <Th className="text-right">Closed</Th>
-                        <Th className="text-right">Conv.</Th>
+                        <Th>{t("common.source")}</Th>
+                        <Th className="text-end">{t("common.leads")}</Th>
+                        <Th className="text-end">{t("common.closed")}</Th>
+                        <Th className="text-end">{t("reports.conv")}</Th>
                       </tr>
                     </thead>
                     <tbody>
@@ -244,9 +247,9 @@ export default function ReportsPage() {
                         .map((s) => (
                           <tr key={s.source}>
                             <Td>{s.label}</Td>
-                            <Td className="tabular text-right">{s.leads}</Td>
-                            <Td className="tabular text-right">{s.closed}</Td>
-                            <Td className="tabular text-right text-muted">{s.leads ? pct((s.closed / s.leads) * 100) : "—"}</Td>
+                            <Td className="tabular text-end">{s.leads}</Td>
+                            <Td className="tabular text-end">{s.closed}</Td>
+                            <Td className="tabular text-end text-muted">{s.leads ? pct((s.closed / s.leads) * 100) : "—"}</Td>
                           </tr>
                         ))}
                     </tbody>
@@ -255,25 +258,25 @@ export default function ReportsPage() {
               )}
             </Card>
 
-            <Card title="Salesperson performance" padded={false} className="xl:col-span-2">
+            <Card title={t("reports.salespersonPerformance")} padded={false} className="xl:col-span-2">
               {!d ? (
                 <div className="p-4">
                   <Skeleton className="h-40" />
                 </div>
               ) : d.team.length === 0 ? (
-                <EmptyState title="No data" />
+                <EmptyState title={t("reports.noData")} />
               ) : (
                 <TableWrap>
                   <Table>
                     <thead>
                       <tr>
-                        <Th>Salesperson</Th>
-                        <Th className="text-right">Leads</Th>
-                        <Th className="text-right">Viewings</Th>
-                        <Th className="text-right">Offers</Th>
-                        <Th className="text-right">Closed</Th>
-                        <Th className="text-right">Sales value</Th>
-                        <Th className="text-right">Commission</Th>
+                        <Th>{t("common.salesperson")}</Th>
+                        <Th className="text-end">{t("common.leads")}</Th>
+                        <Th className="text-end">{t("common.viewings")}</Th>
+                        <Th className="text-end">{t("common.offers")}</Th>
+                        <Th className="text-end">{t("common.closed")}</Th>
+                        <Th className="text-end">{t("common.salesValue")}</Th>
+                        <Th className="text-end">{t("common.commission")}</Th>
                       </tr>
                     </thead>
                     <tbody>
@@ -282,12 +285,12 @@ export default function ReportsPage() {
                           <Td>
                             <PersonChip name={r.name} />
                           </Td>
-                          <Td className="tabular text-right">{r.leads}</Td>
-                          <Td className="tabular text-right">{r.viewings}</Td>
-                          <Td className="tabular text-right">{r.offers}</Td>
-                          <Td className="tabular text-right">{r.closed_deals}</Td>
-                          <Td className="tabular text-right">{money(r.sales_value)}</Td>
-                          <Td className="tabular text-right">{money(r.commission)}</Td>
+                          <Td className="tabular text-end">{r.leads}</Td>
+                          <Td className="tabular text-end">{r.viewings}</Td>
+                          <Td className="tabular text-end">{r.offers}</Td>
+                          <Td className="tabular text-end">{r.closed_deals}</Td>
+                          <Td className="tabular text-end">{money(r.sales_value)}</Td>
+                          <Td className="tabular text-end">{money(r.commission)}</Td>
                         </tr>
                       ))}
                     </tbody>

@@ -1,3 +1,9 @@
+/* IBM Plex Sans Arabic (ADR-0002), weights 400 / 500 / 600 only. These files only DECLARE the faces (with unicode-range subsets); a browser downloads a face only when text
+   that uses the family is on screen, and the family is applied under :lang(ar) alone, so an English session requests no font file. */
+@import "@fontsource/ibm-plex-sans-arabic/400.css";
+@import "@fontsource/ibm-plex-sans-arabic/500.css";
+@import "@fontsource/ibm-plex-sans-arabic/600.css";
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -28,6 +34,36 @@
   }
   .tabular {
     font-variant-numeric: tabular-nums;
+  }
+
+  /* Arabic typography (Phase 2, ADR-0001 2.6 / ADR-0002). Everything here is under :lang(ar), so the English interface is untouched.
+     Arabic joins letters: no letter-spacing and no upper-casing; a larger minimum size and a taller line-height; the Latin-only font features are dropped.
+     The Arabic font (IBM Plex Sans Arabic, ADR-0002) keeps the Tailwind sans stack behind it; its Latin subset covers the English words, names and numbers that
+     sit next to Arabic. */
+  :lang(ar) {
+    font-family: "IBM Plex Sans Arabic", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Inter, Roboto, "Helvetica Neue", Arial, sans-serif;
+    font-feature-settings: normal;
+    letter-spacing: normal;
+  }
+  :lang(ar) body {
+    line-height: 1.7;
+  }
+  :lang(ar) h1,
+  :lang(ar) h2,
+  :lang(ar) h3,
+  :lang(ar) [class*="tracking-"] {
+    letter-spacing: normal;
+  }
+  :lang(ar) .uppercase {
+    text-transform: none;
+  }
+  :lang(ar) .text-2xs {
+    font-size: 0.8125rem;
+    line-height: 1.25rem;
+  }
+  :lang(ar) .text-xs,
+  :lang(ar) .text-sm {
+    line-height: 1.5rem;
   }
 }
 

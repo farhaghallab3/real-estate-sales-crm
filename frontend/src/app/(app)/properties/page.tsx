@@ -25,13 +25,15 @@ import {
   Th,
 } from "@/components/ui/primitives";
 import { useAuth } from "@/lib/auth";
-import { optionsOf, PROPERTY_STATUS, PROPERTY_TYPE } from "@/lib/constants";
-import { formatDate } from "@/lib/format";
-import { useMoney } from "@/lib/company";
+
+import { useMoney, useFormat } from "@/lib/company";
 import { mediaUrl } from "@/lib/api";
 import { useCities, useProperties } from "@/lib/queries";
 import { useUrlState } from "@/lib/use-url-state";
 import type { Property } from "@/types";
+import { useTranslations } from "next-intl";
+import { useEnums } from "@/lib/enums";
+import { useApiErrors } from "@/lib/use-api-errors";
 
 const DEFAULTS = {
   q: "",
@@ -48,7 +50,11 @@ const DEFAULTS = {
 };
 
 export default function PropertiesPage() {
+  const enums = useEnums();
+  const t = useTranslations();
+  const { errorText } = useApiErrors();
   const { money } = useMoney();
+  const { formatDate } = useFormat();
   const { isManager } = useAuth();
   const [f, setF] = useUrlState(DEFAULTS);
   const [addOpen, setAddOpen] = useState(false);
@@ -77,15 +83,15 @@ export default function PropertiesPage() {
   return (
     <div>
       <PageHeader
-        title="Properties"
-        description="Internal inventory — what we can sell, and to whom."
+        title={t("properties.properties")}
+        description={t("properties.internalInventoryWhatWeCan")}
         actions={
           <>
             <div className="inline-flex rounded-md border border-line bg-surface p-0.5">
               {(
                 [
-                  ["table", Rows3, "Table view"],
-                  ["grid", LayoutGrid, "Grid view"],
+                  ["table", Rows3, t("properties.tableView")],
+                  ["grid", LayoutGrid, t("properties.gridView")],
                 ] as const
               ).map(([v, Icon, label]) => (
                 <button
@@ -102,8 +108,7 @@ export default function PropertiesPage() {
               ))}
             </div>
             <Button variant="primary" icon={<Plus className="h-4 w-4" />} onClick={() => setAddOpen(true)}>
-              Add property
-            </Button>
+              {t("common.addProperty")}</Button>
           </>
         }
       />
@@ -113,64 +118,62 @@ export default function PropertiesPage() {
           <Pills
             value={f.status}
             onChange={(v) => setF({ status: v })}
-            options={[{ value: "", label: "All" }, ...optionsOf(PROPERTY_STATUS)]}
+            options={[{ value: "", label: t("common.all") }, ...enums.options("propertyStatus")]}
           />
           <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-6">
-            <SearchInput value={f.q} onChange={(v) => setF({ q: v })} placeholder="Search title, address, ref…" className="lg:col-span-2" />
-            <Select value={f.city} onChange={(e) => setF({ city: e.target.value })} aria-label="Location">
-              <option value="">All locations</option>
+            <SearchInput value={f.q} onChange={(v) => setF({ q: v })} placeholder={t("properties.searchTitleAddressRef")} className="lg:col-span-2" />
+            <Select value={f.city} onChange={(e) => setF({ city: e.target.value })} aria-label={t("common.location")}>
+              <option value="">{t("common.allLocations")}</option>
               {cities.data?.map((c) => (
                 <option key={c} value={c}>
                   {c}
                 </option>
               ))}
             </Select>
-            <Select value={f.type} onChange={(e) => setF({ type: e.target.value })} aria-label="Type">
-              <option value="">All types</option>
-              {optionsOf(PROPERTY_TYPE).map((o) => (
+            <Select value={f.type} onChange={(e) => setF({ type: e.target.value })} aria-label={t("common.type")}>
+              <option value="">{t("common.allTypes")}</option>
+              {enums.options("propertyType").map((o) => (
                 <option key={o.value} value={o.value}>
                   {o.label}
                 </option>
               ))}
             </Select>
-            <Select value={f.beds} onChange={(e) => setF({ beds: e.target.value })} aria-label="Bedrooms">
-              <option value="">Any beds</option>
+            <Select value={f.beds} onChange={(e) => setF({ beds: e.target.value })} aria-label={t("properties.bedrooms")}>
+              <option value="">{t("properties.anyBeds")}</option>
               {[1, 2, 3, 4, 5].map((n) => (
                 <option key={n} value={n}>
-                  {n}+ beds
-                </option>
+                  {t("properties.nBeds", { n })}</option>
               ))}
             </Select>
             {isManager ? (
               <UserSelect
                 value={f.assigned ? Number(f.assigned) : null}
                 onChange={(id) => setF({ assigned: id ? String(id) : "" })}
-                emptyLabel="All salespeople"
-                aria-label="Salesperson"
+                emptyLabel={t("common.allSalespeople")}
+                aria-label={t("common.salesperson")}
               />
             ) : (
               <span />
             )}
             <Input
               type="number"
-              placeholder="Min price"
+              placeholder={t("properties.minPrice")}
               defaultValue={f.min}
               key={`min-${f.min}`}
               onBlur={(e) => e.target.value !== f.min && setF({ min: e.target.value })}
-              aria-label="Minimum price"
+              aria-label={t("properties.minimumPrice")}
             />
             <Input
               type="number"
-              placeholder="Max price"
+              placeholder={t("properties.maxPrice")}
               defaultValue={f.max}
               key={`max-${f.max}`}
               onBlur={(e) => e.target.value !== f.max && setF({ max: e.target.value })}
-              aria-label="Maximum price"
+              aria-label={t("properties.maximumPrice")}
             />
             {anyFilter && (
               <Button variant="ghost" onClick={clear}>
-                Clear filters
-              </Button>
+                {t("common.clearFilters")}</Button>
             )}
           </div>
         </div>
@@ -178,17 +181,16 @@ export default function PropertiesPage() {
         {list.isLoading ? (
           <TableSkeleton cols={7} />
         ) : list.error ? (
-          <ErrorState message={(list.error as Error).message} onRetry={() => void list.refetch()} />
+          <ErrorState message={errorText(list.error)} onRetry={() => void list.refetch()} />
         ) : list.data!.results.length === 0 ? (
           <EmptyState
-            title={anyFilter ? "No properties match these filters" : "No properties yet"}
+            title={anyFilter ? t("properties.noPropertiesMatchTheseFilters") : t("properties.noPropertiesYet")}
             action={
               anyFilter ? (
-                <Button onClick={clear}>Clear filters</Button>
+                <Button onClick={clear}>{t("common.clearFilters")}</Button>
               ) : (
                 <Button variant="primary" onClick={() => setAddOpen(true)}>
-                  Add property
-                </Button>
+                  {t("common.addProperty")}</Button>
               )
             }
           />
@@ -207,7 +209,7 @@ export default function PropertiesPage() {
                   ) : (
                     <Building2 className="h-8 w-8" />
                   )}
-                  <span className="absolute left-2 top-2">
+                  <span className="absolute start-2 top-2">
                     <PropertyStatusBadge status={p.status} />
                   </span>
                 </div>
@@ -220,9 +222,9 @@ export default function PropertiesPage() {
                   <div className="flex items-center gap-3 text-xs text-muted">
                     <span className="inline-flex items-center gap-1"><BedDouble className="h-3.5 w-3.5" />{p.bedrooms}</span>
                     <span className="inline-flex items-center gap-1"><Bath className="h-3.5 w-3.5" />{p.bathrooms}</span>
-                    <span className="inline-flex items-center gap-1"><Maximize2 className="h-3.5 w-3.5" />{p.area_sqm ? `${Number(p.area_sqm)} m²` : "—"}</span>
+                    <span className="inline-flex items-center gap-1"><Maximize2 className="h-3.5 w-3.5" />{p.area_sqm ? t("properties.valueM", { value: Number(p.area_sqm) }) : "—"}</span>
                   </div>
-                  <p className="truncate text-xs text-muted">{p.assigned_to?.full_name ?? "Unassigned"}</p>
+                  <p className="truncate text-xs text-muted">{p.assigned_to?.full_name ?? t("common.unassigned")}</p>
                 </div>
               </Link>
             ))}
@@ -232,18 +234,18 @@ export default function PropertiesPage() {
             <Table>
               <thead>
                 <tr>
-                  <Th sortKey="title" sort={f.sort} onSort={onSort}>Property</Th>
-                  <Th>Address</Th>
-                  <Th sortKey="city" sort={f.sort} onSort={onSort}>Location</Th>
-                  <Th>Type</Th>
-                  <Th sortKey="price" sort={f.sort} onSort={onSort} className="text-right">Price</Th>
-                  <Th sortKey="bedrooms" sort={f.sort} onSort={onSort} className="text-right">Beds</Th>
-                  <Th className="text-right">Baths</Th>
-                  <Th sortKey="area_sqm" sort={f.sort} onSort={onSort} className="text-right">Area</Th>
-                  <Th sortKey="status" sort={f.sort} onSort={onSort}>Status</Th>
-                  <Th>Salesperson</Th>
-                  <Th>Images</Th>
-                  <Th sortKey="created_at" sort={f.sort} onSort={onSort}>Created</Th>
+                  <Th sortKey="title" sort={f.sort} onSort={onSort}>{t("common.property")}</Th>
+                  <Th>{t("properties.address")}</Th>
+                  <Th sortKey="city" sort={f.sort} onSort={onSort}>{t("common.location")}</Th>
+                  <Th>{t("common.type")}</Th>
+                  <Th sortKey="price" sort={f.sort} onSort={onSort} className="text-end">{t("properties.price")}</Th>
+                  <Th sortKey="bedrooms" sort={f.sort} onSort={onSort} className="text-end">{t("properties.beds")}</Th>
+                  <Th className="text-end">{t("properties.baths")}</Th>
+                  <Th sortKey="area_sqm" sort={f.sort} onSort={onSort} className="text-end">{t("properties.area")}</Th>
+                  <Th sortKey="status" sort={f.sort} onSort={onSort}>{t("common.status")}</Th>
+                  <Th>{t("common.salesperson")}</Th>
+                  <Th>{t("properties.images")}</Th>
+                  <Th sortKey="created_at" sort={f.sort} onSort={onSort}>{t("common.created")}</Th>
                 </tr>
               </thead>
               <tbody>
@@ -257,11 +259,11 @@ export default function PropertiesPage() {
                     </Td>
                     <Td className="max-w-[220px] truncate text-muted">{p.address}</Td>
                     <Td className="whitespace-nowrap">{p.city}</Td>
-                    <Td className="whitespace-nowrap text-muted">{PROPERTY_TYPE[p.property_type]}</Td>
-                    <Td className="tabular whitespace-nowrap text-right font-medium">{money(p.price)}</Td>
-                    <Td className="tabular text-right">{p.bedrooms || "—"}</Td>
-                    <Td className="tabular text-right">{p.bathrooms || "—"}</Td>
-                    <Td className="tabular whitespace-nowrap text-right">{p.area_sqm ? `${Number(p.area_sqm)} m²` : "—"}</Td>
+                    <Td className="whitespace-nowrap text-muted">{enums.label("propertyType", p.property_type)}</Td>
+                    <Td className="tabular whitespace-nowrap text-end font-medium">{money(p.price)}</Td>
+                    <Td className="tabular text-end">{p.bedrooms || "—"}</Td>
+                    <Td className="tabular text-end">{p.bathrooms || "—"}</Td>
+                    <Td className="tabular whitespace-nowrap text-end">{p.area_sqm ? t("properties.valueM", { value: Number(p.area_sqm) }) : "—"}</Td>
                     <Td>
                       <PropertyStatusBadge status={p.status} />
                     </Td>

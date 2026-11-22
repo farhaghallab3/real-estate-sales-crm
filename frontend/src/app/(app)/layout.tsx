@@ -5,8 +5,10 @@ import { Suspense, useEffect } from "react";
 
 import { AppShell } from "@/components/layout/app-shell";
 import { useAuth } from "@/lib/auth";
+import { useTranslations } from "next-intl";
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
+  const t = useTranslations();
   const { status, user } = useAuth();
   const router = useRouter();
 
@@ -18,13 +20,12 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   if (status !== "authenticated" || user?.must_change_password) {
     return (
       <div className="flex min-h-screen items-center justify-center text-sm text-muted" aria-busy>
-        Loading workspace…
-      </div>
+        {t("shell.loadingWorkspace")}</div>
     );
   }
   return (
     <AppShell>
-      <Suspense fallback={<div className="py-10 text-center text-sm text-muted">Loading…</div>}>{children}</Suspense>
+      <Suspense fallback={<div className="py-10 text-center text-sm text-muted">{t("common.loading")}</div>}>{children}</Suspense>
     </AppShell>
   );
 }

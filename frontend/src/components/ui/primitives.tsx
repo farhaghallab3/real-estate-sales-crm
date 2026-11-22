@@ -5,9 +5,11 @@ import { ChevronLeft, ChevronRight, Inbox, Search } from "lucide-react";
 import { useEffect, useState } from "react";
 
 import { initials } from "@/lib/format";
+import { headerAlignment } from "@/lib/table-align";
 
 import { Button } from "./button";
 import { Input } from "./field";
+import { useTranslations } from "next-intl";
 
 // ---- Card -----------------------------------------------------------------------------------------
 export function Card({
@@ -62,6 +64,16 @@ export function PageHeader({
   );
 }
 
+// ---- Ltr ------------------------------------------------------------------------------------------
+/** Text that always reads left to right (phone numbers, e-mail addresses, codes): isolated from the surrounding Arabic text, so "+20 100 123 4567" or "a@b.com" is never reordered in an RTL page. */
+export function Ltr({ children, className }: { children: React.ReactNode; className?: string }) {
+  return (
+    <bdi dir="ltr" className={className}>
+      {children}
+    </bdi>
+  );
+}
+
 // ---- Avatar ---------------------------------------------------------------------------------------
 export function Avatar({ name, size = 28 }: { name: string; size?: number }) {
   return (
@@ -76,7 +88,8 @@ export function Avatar({ name, size = 28 }: { name: string; size?: number }) {
 }
 
 export function PersonChip({ name }: { name?: string | null }) {
-  if (!name) return <span className="text-muted">Unassigned</span>;
+  const tr = useTranslations();
+  if (!name) return <span className="text-muted">{tr("common.unassigned")}</span>;
   return (
     <span className="inline-flex items-center gap-1.5">
       <Avatar name={name} size={20} />
@@ -126,11 +139,12 @@ export function TableSkeleton({ rows = 8, cols = 6 }: { rows?: number; cols?: nu
 }
 
 export function ErrorState({ message, onRetry }: { message: string; onRetry?: () => void }) {
+  const tr = useTranslations();
   return (
     <EmptyState
-      title="Something went wrong"
+      title={tr("ui.somethingWentWrong")}
       description={message}
-      action={onRetry && <Button onClick={onRetry}>Try again</Button>}
+      action={onRetry && <Button onClick={onRetry}>{tr("ui.tryAgain")}</Button>}
     />
   );
 }
@@ -231,23 +245,22 @@ export function Pagination({
   count: number;
   onPage: (p: number) => void;
 }) {
+  const tr = useTranslations();
   const pages = Math.max(1, Math.ceil(count / pageSize));
   const from = count === 0 ? 0 : (page - 1) * pageSize + 1;
   const to = Math.min(page * pageSize, count);
   return (
     <div className="flex items-center justify-between gap-3 border-t border-line px-4 py-2.5 text-xs text-muted">
       <span className="tabular">
-        {from}–{to} of {count}
-      </span>
+        {tr("ui.rangeOfCount", { from, to, count })}</span>
       <div className="flex items-center gap-1.5">
         <span className="tabular">
-          Page {page} / {pages}
-        </span>
-        <Button size="sm" variant="secondary" disabled={page <= 1} onClick={() => onPage(page - 1)} aria-label="Previous page">
-          <ChevronLeft className="h-4 w-4" />
+          {tr("ui.pageOfPages", { page, pages })}</span>
+        <Button size="sm" variant="secondary" disabled={page <= 1} onClick={() => onPage(page - 1)} aria-label={tr("ui.previousPage")}>
+          <ChevronLeft className="h-4 w-4 rtl:-scale-x-100" />
         </Button>
-        <Button size="sm" variant="secondary" disabled={page >= pages} onClick={() => onPage(page + 1)} aria-label="Next page">
-          <ChevronRight className="h-4 w-4" />
+        <Button size="sm" variant="secondary" disabled={page >= pages} onClick={() => onPage(page + 1)} aria-label={tr("ui.nextPage")}>
+          <ChevronRight className="h-4 w-4 rtl:-scale-x-100" />
         </Button>
       </div>
     </div>
@@ -258,7 +271,7 @@ export function Pagination({
 export function SearchInput({
   value,
   onChange,
-  placeholder = "Search…",
+  placeholder,
   className,
 }: {
   value: string;
@@ -266,6 +279,7 @@ export function SearchInput({
   placeholder?: string;
   className?: string;
 }) {
+  const tr = useTranslations();
   const [local, setLocal] = useState(value);
   useEffect(() => setLocal(value), [value]);
   useEffect(() => {
@@ -275,12 +289,12 @@ export function SearchInput({
   }, [local, value, onChange]);
   return (
     <div className={clsx("relative", className)}>
-      <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted" />
+      <Search className="pointer-events-none absolute start-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted" />
       <Input
         value={local}
         onChange={(e) => setLocal(e.target.value)}
-        placeholder={placeholder}
-        className="pl-8"
+        placeholder={placeholder ?? tr("ui.searchPlaceholder")}
+        className="ps-8"
         aria-label={placeholder}
       />
     </div>
@@ -293,7 +307,7 @@ export function TableWrap({ children }: { children: React.ReactNode }) {
 }
 
 export function Table({ children }: { children: React.ReactNode }) {
-  return <table className="w-full min-w-max border-collapse text-left text-sm">{children}</table>;
+  return <table className="w-full min-w-max border-collapse text-start text-sm">{children}</table>;
 }
 
 export function Th({
@@ -316,6 +330,7 @@ export function Th({
       scope="col"
       className={clsx(
         "whitespace-nowrap border-b border-line bg-canvas/70 px-3 py-2 text-2xs font-semibold uppercase tracking-wide text-muted",
+        headerAlignment(className), // explicit: a <th> is centered by the browser unless an alignment reaches it
         className,
       )}
     >

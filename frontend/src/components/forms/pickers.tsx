@@ -11,6 +11,7 @@ import { useUsers } from "@/lib/queries";
 import type { Lead, LeadMini, Paginated, Property, PropertyMini } from "@/types";
 
 import { Input, Select } from "../ui/field";
+import { useTranslations } from "next-intl";
 
 function Combobox<T extends { id: number }>({
   queryKey,
@@ -31,6 +32,7 @@ function Combobox<T extends { id: number }>({
   disabled?: boolean;
   invalid?: boolean;
 }) {
+  const tr = useTranslations();
   const [open, setOpen] = useState(false);
   const [q, setQ] = useState("");
   const [debounced, setDebounced] = useState("");
@@ -90,8 +92,8 @@ function Combobox<T extends { id: number }>({
                 onSelect(null);
                 setOpen(true);
               }}
-              className="ml-2 text-muted hover:text-ink"
-              aria-label="Clear selection"
+              className="ms-2 text-muted hover:text-ink"
+              aria-label={tr("ui.clearSelection")}
             >
               <X className="h-4 w-4" />
             </button>
@@ -110,7 +112,7 @@ function Combobox<T extends { id: number }>({
             placeholder={placeholder}
             className={clsx(invalid && "border-bad-fg")}
           />
-          <ChevronDown className="pointer-events-none absolute right-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted" />
+          <ChevronDown className="pointer-events-none absolute end-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted" />
         </div>
       )}
       {open && rect && (
@@ -119,15 +121,15 @@ function Combobox<T extends { id: number }>({
           style={{ position: "fixed", left: rect.left, top: rect.top, width: rect.width }}
           className="z-[70] max-h-60 overflow-auto rounded-md border border-line bg-surface py-1 shadow-pop"
         >
-          {results.isLoading && <li className="px-3 py-2 text-xs text-muted">Searching…</li>}
-          {results.data?.length === 0 && <li className="px-3 py-2 text-xs text-muted">No matches</li>}
+          {results.isLoading && <li className="px-3 py-2 text-xs text-muted">{tr("ui.searching")}</li>}
+          {results.data?.length === 0 && <li className="px-3 py-2 text-xs text-muted">{tr("ui.noMatches")}</li>}
           {results.data?.map((item) => {
             const r = render(item);
             return (
               <li key={item.id}>
                 <button
                   type="button"
-                  className="flex w-full flex-col px-3 py-1.5 text-left hover:bg-brand-50"
+                  className="flex w-full flex-col px-3 py-1.5 text-start hover:bg-brand-50"
                   onClick={() => {
                     onSelect(item);
                     setOpen(false);
@@ -151,7 +153,7 @@ export function LeadPicker({
   onChange,
   disabled,
   invalid,
-  placeholder = "Search lead by name or phone…",
+  placeholder,
 }: {
   label: string | null;
   onChange: (lead: (Lead | LeadMini) | null) => void;
@@ -159,14 +161,15 @@ export function LeadPicker({
   invalid?: boolean;
   placeholder?: string;
 }) {
+  const tr = useTranslations();
   return (
     <Combobox<Lead>
       queryKey="lead"
       fetcher={async (q) => (await api<Paginated<Lead>>("/leads/", { params: { search: q, page_size: 8 } })).results}
-      render={(l) => ({ primary: l.name, secondary: `${l.phone} · ${l.preferred_location || "No location"}` })}
+      render={(l) => ({ primary: l.name, secondary: `${l.phone} · ${l.preferred_location || tr("leads.noLocation")}` })}
       onSelect={onChange}
       selectedLabel={label}
-      placeholder={placeholder}
+      placeholder={placeholder ?? tr("leads.pickerPlaceholder")}
       disabled={disabled}
       invalid={invalid}
     />
@@ -178,7 +181,7 @@ export function PropertyPicker({
   onChange,
   disabled,
   invalid,
-  placeholder = "Search property by title or address…",
+  placeholder,
 }: {
   label: string | null;
   onChange: (property: (Property | PropertyMini) | null) => void;
@@ -187,6 +190,7 @@ export function PropertyPicker({
   placeholder?: string;
 }) {
   const { money } = useMoney();
+  const tr = useTranslations();
   return (
     <Combobox<Property>
       queryKey="property"
@@ -196,7 +200,7 @@ export function PropertyPicker({
       render={(p) => ({ primary: p.title, secondary: `${p.city} · ${money(p.price)} · ${p.reference}` })}
       onSelect={onChange}
       selectedLabel={label}
-      placeholder={placeholder}
+      placeholder={placeholder ?? tr("properties.pickerPlaceholder")}
       disabled={disabled}
       invalid={invalid}
     />
@@ -207,7 +211,7 @@ export function UserSelect({
   value,
   onChange,
   allowEmpty = true,
-  emptyLabel = "Unassigned",
+  emptyLabel,
   className,
   ...rest
 }: {
@@ -217,6 +221,7 @@ export function UserSelect({
   emptyLabel?: string;
   className?: string;
 } & Omit<React.SelectHTMLAttributes<HTMLSelectElement>, "value" | "onChange">) {
+  const tr = useTranslations();
   const users = useUsers();
   const list = (users.data ?? []).filter((u) => (u as { is_active?: boolean }).is_active !== false);
   return (
@@ -226,10 +231,10 @@ export function UserSelect({
       className={className}
       {...rest}
     >
-      {allowEmpty && <option value="">{emptyLabel}</option>}
+      {allowEmpty && <option value="">{emptyLabel ?? tr("common.unassigned")}</option>}
       {/* A record can still be assigned to a provider (technical) account, which is never listed: keep it visible. */}
       {value !== "" && value != null && !list.some((u) => u.id === Number(value)) && (
-        <option value={value}>Provider account</option>
+        <option value={value}>{tr("ui.providerAccount")}</option>
       )}
       {list.map((u) => (
         <option key={u.id} value={u.id}>

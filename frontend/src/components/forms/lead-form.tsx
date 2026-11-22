@@ -9,12 +9,15 @@ import { Modal } from "@/components/ui/modal";
 import { useToast } from "@/components/ui/toast";
 import { api, ApiError } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
-import { LEAD_SOURCE, optionsOf } from "@/lib/constants";
+
 import { useCompany } from "@/lib/company";
 import { useApiMutation } from "@/lib/queries";
 import type { Lead, LeadInput } from "@/types";
 
 import { UserSelect } from "./pickers";
+import { useTranslations } from "next-intl";
+import { useEnums } from "@/lib/enums";
+import { useApiErrors } from "@/lib/use-api-errors";
 
 const empty: LeadInput = {
   first_name: "",
@@ -38,6 +41,9 @@ export function LeadFormModal({
   lead?: Lead | null;
   onSaved?: (lead: Lead) => void;
 }) {
+  const enums = useEnums();
+  const t = useTranslations();
+  const { errorFields, errorText } = useApiErrors();
   const { isManager, user } = useAuth();
   const { currency_code } = useCompany();
   const toast = useToast();
@@ -85,15 +91,15 @@ export function LeadFormModal({
     setFormError(null);
     try {
       const saved = await save.mutateAsync(values);
-      toast.success(lead ? "Lead updated" : "Lead added");
+      toast.success(lead ? t("leads.leadUpdated") : t("leads.leadAdded"));
       onSaved?.(saved);
       onClose();
     } catch (e) {
       if (e instanceof ApiError) {
-        const fields = e.fieldErrors;
+        const fields = errorFields(e);
         for (const [k, msg] of Object.entries(fields)) setError(k as keyof LeadInput, { message: msg });
-        if (Object.keys(fields).length === 0) setFormError(e.message);
-      } else setFormError("Could not save the lead.");
+        if (Object.keys(fields).length === 0) setFormError(errorText(e));
+      } else setFormError(errorText(e, t("leads.couldNotSaveLead")));
     }
   });
 
@@ -101,12 +107,12 @@ export function LeadFormModal({
     <Modal
       open={open}
       onClose={onClose}
-      title={lead ? "Edit lead" : "Add lead"}
+      title={lead ? t("leads.editLead") : t("common.addLead")}
       footer={
         <>
-          <Button onClick={onClose}>Cancel</Button>
+          <Button onClick={onClose}>{t("common.cancel")}</Button>
           <Button variant="primary" loading={save.isPending} onClick={onSubmit}>
-            {lead ? "Save changes" : "Add lead"}
+            {lead ? t("common.saveChanges") : t("common.addLead")}
           </Button>
         </>
       }
@@ -115,43 +121,43 @@ export function LeadFormModal({
         <div className="sm:col-span-2">
           <FormError message={formError} />
         </div>
-        <Field label="First name" required error={errors.first_name?.message}>
-          <Input autoFocus {...register("first_name", { required: "First name is required" })} />
+        <Field label={t("common.firstName")} required error={errors.first_name?.message}>
+          <Input autoFocus {...register("first_name", { required: t("leads.firstNameRequired") })} />
         </Field>
-        <Field label="Last name" error={errors.last_name?.message}>
+        <Field label={t("common.lastName")} error={errors.last_name?.message}>
           <Input {...register("last_name")} />
         </Field>
-        <Field label="Phone" required error={errors.phone?.message}>
-          <Input type="tel" {...register("phone", { required: "Phone is required" })} />
+        <Field label={t("common.phone")} required error={errors.phone?.message}>
+          <Input type="tel" {...register("phone", { required: t("leads.phoneRequired") })} />
         </Field>
-        <Field label="Email" error={errors.email?.message}>
+        <Field label={t("common.email")} error={errors.email?.message}>
           <Input
             type="email"
-            {...register("email", { pattern: { value: /^\S+@\S+\.\S+$/, message: "Enter a valid email" } })}
+            {...register("email", { pattern: { value: /^\S+@\S+\.\S+$/, message: t("leads.enterValidEmail") } })}
           />
         </Field>
-        <Field label="Lead source" error={errors.source?.message}>
+        <Field label={t("common.leadSource")} error={errors.source?.message}>
           <Select {...register("source")}>
-            {optionsOf(LEAD_SOURCE).map((o) => (
+            {enums.options("leadSource").map((o) => (
               <option key={o.value} value={o.value}>
                 {o.label}
               </option>
             ))}
           </Select>
         </Field>
-        <Field label={`Budget (${currency_code})`} error={errors.budget?.message}>
+        <Field label={t("leads.budgetCurrencyCode", { currency_code })} error={errors.budget?.message}>
           <Input
             type="number"
             min={0}
             step={1000}
-            {...register("budget", { min: { value: 0, message: "Budget cannot be negative" } })}
+            {...register("budget", { min: { value: 0, message: t("leads.budgetCannotNegative") } })}
           />
         </Field>
-        <Field label="Preferred location" error={errors.preferred_location?.message}>
-          <Input placeholder="e.g. Riverside" {...register("preferred_location")} />
+        <Field label={t("leads.preferredLocation")} error={errors.preferred_location?.message}>
+          <Input placeholder={t("leads.eGRiverside")} {...register("preferred_location")} />
         </Field>
         {isManager && (
-          <Field label="Assigned salesperson">
+          <Field label={t("common.assignedSalesperson")}>
             <Controller
               control={control}
               name="assigned_to_id"

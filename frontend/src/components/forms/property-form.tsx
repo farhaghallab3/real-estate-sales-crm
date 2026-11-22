@@ -9,12 +9,15 @@ import { Modal } from "@/components/ui/modal";
 import { useToast } from "@/components/ui/toast";
 import { api, ApiError } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
-import { optionsOf, PROPERTY_STATUS, PROPERTY_TYPE } from "@/lib/constants";
+
 import { useCompany } from "@/lib/company";
 import { useApiMutation } from "@/lib/queries";
 import type { Property, PropertyInput } from "@/types";
 
 import { UserSelect } from "./pickers";
+import { useTranslations } from "next-intl";
+import { useEnums } from "@/lib/enums";
+import { useApiErrors } from "@/lib/use-api-errors";
 
 const empty: PropertyInput = {
   title: "",
@@ -41,6 +44,9 @@ export function PropertyFormModal({
   property?: Property | null;
   onSaved?: (p: Property) => void;
 }) {
+  const enums = useEnums();
+  const t = useTranslations();
+  const { errorFields, errorText } = useApiErrors();
   const { isManager, user } = useAuth();
   const { currency_code } = useCompany();
   const toast = useToast();
@@ -91,15 +97,15 @@ export function PropertyFormModal({
     setFormError(null);
     try {
       const saved = await save.mutateAsync(values);
-      toast.success(property ? "Property updated" : "Property added");
+      toast.success(property ? t("properties.propertyUpdated") : t("common.propertyAdded"));
       onSaved?.(saved);
       onClose();
     } catch (e) {
       if (e instanceof ApiError) {
-        const fields = e.fieldErrors;
+        const fields = errorFields(e);
         for (const [k, msg] of Object.entries(fields)) setError(k as keyof PropertyInput, { message: msg });
-        if (Object.keys(fields).length === 0) setFormError(e.message);
-      } else setFormError("Could not save the property.");
+        if (Object.keys(fields).length === 0) setFormError(errorText(e));
+      } else setFormError(errorText(e, t("properties.couldNotSaveProperty")));
     }
   });
 
@@ -108,12 +114,12 @@ export function PropertyFormModal({
       open={open}
       onClose={onClose}
       size="lg"
-      title={property ? "Edit property" : "Add property"}
+      title={property ? t("properties.editProperty") : t("common.addProperty")}
       footer={
         <>
-          <Button onClick={onClose}>Cancel</Button>
+          <Button onClick={onClose}>{t("common.cancel")}</Button>
           <Button variant="primary" loading={save.isPending} onClick={onSubmit}>
-            {property ? "Save changes" : "Add property"}
+            {property ? t("common.saveChanges") : t("common.addProperty")}
           </Button>
         </>
       }
@@ -122,52 +128,52 @@ export function PropertyFormModal({
         <div className="sm:col-span-6">
           <FormError message={formError} />
         </div>
-        <Field label="Title" required className="sm:col-span-6" error={errors.title?.message}>
-          <Input autoFocus {...register("title", { required: "Title is required" })} />
+        <Field label={t("common.title")} required className="sm:col-span-6" error={errors.title?.message}>
+          <Input autoFocus {...register("title", { required: t("common.titleRequired") })} />
         </Field>
-        <Field label="Address" required className="sm:col-span-4" error={errors.address?.message}>
-          <Input {...register("address", { required: "Address is required" })} />
+        <Field label={t("properties.address")} required className="sm:col-span-4" error={errors.address?.message}>
+          <Input {...register("address", { required: t("properties.addressRequired") })} />
         </Field>
-        <Field label="City / location" required className="sm:col-span-2" error={errors.city?.message}>
-          <Input {...register("city", { required: "Location is required" })} />
+        <Field label={t("properties.cityLocation")} required className="sm:col-span-2" error={errors.city?.message}>
+          <Input {...register("city", { required: t("properties.locationRequired") })} />
         </Field>
-        <Field label={`Price (${currency_code})`} required className="sm:col-span-2" error={errors.price?.message}>
+        <Field label={t("properties.priceCurrencyCode", { currency_code })} required className="sm:col-span-2" error={errors.price?.message}>
           <Input
             type="number"
             min={1}
             step={1000}
-            {...register("price", { required: "Price is required", min: { value: 1, message: "Must be above zero" } })}
+            {...register("price", { required: t("properties.priceRequired"), min: { value: 1, message: t("common.mustAboveZero") } })}
           />
         </Field>
-        <Field label="Type" className="sm:col-span-2">
+        <Field label={t("common.type")} className="sm:col-span-2">
           <Select {...register("property_type")}>
-            {optionsOf(PROPERTY_TYPE).map((o) => (
+            {enums.options("propertyType").map((o) => (
               <option key={o.value} value={o.value}>
                 {o.label}
               </option>
             ))}
           </Select>
         </Field>
-        <Field label="Status" className="sm:col-span-2">
+        <Field label={t("common.status")} className="sm:col-span-2">
           <Select {...register("status")}>
-            {optionsOf(PROPERTY_STATUS).map((o) => (
+            {enums.options("propertyStatus").map((o) => (
               <option key={o.value} value={o.value}>
                 {o.label}
               </option>
             ))}
           </Select>
         </Field>
-        <Field label="Bedrooms" className="sm:col-span-2" error={errors.bedrooms?.message}>
+        <Field label={t("properties.bedrooms")} className="sm:col-span-2" error={errors.bedrooms?.message}>
           <Input type="number" min={0} {...register("bedrooms", { min: 0 })} />
         </Field>
-        <Field label="Bathrooms" className="sm:col-span-2" error={errors.bathrooms?.message}>
+        <Field label={t("properties.bathrooms")} className="sm:col-span-2" error={errors.bathrooms?.message}>
           <Input type="number" min={0} {...register("bathrooms", { min: 0 })} />
         </Field>
-        <Field label="Area (m²)" className="sm:col-span-2" error={errors.area_sqm?.message}>
+        <Field label={t("properties.areaM")} className="sm:col-span-2" error={errors.area_sqm?.message}>
           <Input type="number" min={0} step="0.1" {...register("area_sqm")} />
         </Field>
         {isManager && (
-          <Field label="Assigned salesperson" className="sm:col-span-6">
+          <Field label={t("common.assignedSalesperson")} className="sm:col-span-6">
             <Controller
               control={control}
               name="assigned_to_id"
@@ -175,7 +181,7 @@ export function PropertyFormModal({
             />
           </Field>
         )}
-        <Field label="Internal notes" className="sm:col-span-6">
+        <Field label={t("properties.internalNotes")} className="sm:col-span-6">
           <Textarea {...register("description")} />
         </Field>
       </form>

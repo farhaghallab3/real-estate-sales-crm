@@ -5,11 +5,14 @@ import { Calendar, FileText, Mail, Phone, Repeat, Check } from "lucide-react";
 import Link from "next/link";
 
 import { useToast } from "@/components/ui/toast";
-import { api, ApiError } from "@/lib/api";
-import { TASK_TYPE } from "@/lib/constants";
-import { formatWhen } from "@/lib/format";
+import { api } from "@/lib/api";
+
 import { useApiMutation } from "@/lib/queries";
 import type { Task, TaskType } from "@/types";
+import { useTranslations } from "next-intl";
+import { useEnums } from "@/lib/enums";
+import { useFormat } from "@/lib/company";
+import { useApiErrors } from "@/lib/use-api-errors";
 
 const ICONS: Record<TaskType, React.ComponentType<{ className?: string }>> = {
   call: Phone,
@@ -25,6 +28,8 @@ export function TaskTypeIcon({ type, className }: { type: TaskType; className?: 
 }
 
 export function useToggleTask() {
+  const tr = useTranslations();
+  const { errorText } = useApiErrors();
   const toast = useToast();
   const complete = useApiMutation((t: Task) =>
     api<Task>(`/tasks/${t.id}/${t.status === "completed" ? "reopen" : "complete"}/`, { method: "POST" }),
@@ -32,9 +37,9 @@ export function useToggleTask() {
   return async (task: Task) => {
     try {
       await complete.mutateAsync(task);
-      if (task.status === "pending") toast.success("Task completed");
+      if (task.status === "pending") toast.success(tr("tasks.taskCompleted"));
     } catch (e) {
-      toast.error(e instanceof ApiError ? e.message : "Could not update task");
+      toast.error(errorText(e, tr("tasks.couldNotUpdateTask")));
     }
   };
 }
@@ -48,13 +53,16 @@ export function TaskRow({
   showAssignee?: boolean;
   onEdit?: (t: Task) => void;
 }) {
+  const enums = useEnums();
+  const tr = useTranslations();
+  const { formatWhen } = useFormat();
   const toggle = useToggleTask();
   const done = task.status === "completed";
   return (
     <li className="flex items-start gap-3 px-4 py-2.5">
       <button
         onClick={() => void toggle(task)}
-        aria-label={done ? "Reopen task" : "Mark task complete"}
+        aria-label={done ? tr("tasks.reopenTask") : tr("tasks.markTaskComplete")}
         className={clsx(
           "mt-0.5 flex h-[18px] w-[18px] shrink-0 items-center justify-center rounded border transition-colors",
           done ? "border-brand bg-brand text-white" : "border-line hover:border-brand",
@@ -65,13 +73,13 @@ export function TaskRow({
       <div className="min-w-0 flex-1">
         <button
           onClick={() => onEdit?.(task)}
-          className={clsx("block max-w-full truncate text-left text-sm font-medium", done && "text-muted line-through")}
+          className={clsx("block max-w-full truncate text-start text-sm font-medium", done && "text-muted line-through")}
         >
           {task.title}
         </button>
         <div className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-muted">
           <span className="inline-flex items-center gap-1">
-            <TaskTypeIcon type={task.type} className="h-3 w-3" /> {TASK_TYPE[task.type]}
+            <TaskTypeIcon type={task.type} className="h-3 w-3" /> {enums.label("taskType", task.type)}
           </span>
           {task.lead && (
             <Link href={`/leads/${task.lead.id}`} className="text-brand hover:underline">
@@ -92,7 +100,7 @@ export function TaskRow({
           task.is_overdue ? "font-medium text-bad-fg" : "text-muted",
         )}
       >
-        {done ? "Done" : formatWhen(task.due_at)}
+        {done ? tr("tasks.done") : formatWhen(task.due_at)}
       </span>
     </li>
   );

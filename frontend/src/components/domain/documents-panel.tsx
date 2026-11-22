@@ -7,28 +7,36 @@ import { Button } from "@/components/ui/button";
 import { Select } from "@/components/ui/field";
 import { EmptyState } from "@/components/ui/primitives";
 import { useToast } from "@/components/ui/toast";
-import { api, ApiError, downloadFile } from "@/lib/api";
+import { api, downloadFile } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
-import { DOCUMENT_CATEGORY, optionsOf } from "@/lib/constants";
-import { fileSize, formatDate } from "@/lib/format";
+
+import { fileSize } from "@/lib/format";
 import { useApiMutation, useChecklist, useDocuments } from "@/lib/queries";
 import type { DocumentCategory, DocumentItem } from "@/types";
+import { useTranslations } from "next-intl";
+import { useEnums } from "@/lib/enums";
+import { useFormat } from "@/lib/company";
+import { useApiErrors } from "@/lib/use-api-errors";
 
 export function useDeleteDocument() {
+  const t = useTranslations();
+  const { errorText } = useApiErrors();
   const toast = useToast();
   const del = useApiMutation((d: DocumentItem) => api(`/documents/${d.id}/`, { method: "DELETE" }));
   return async (d: DocumentItem) => {
-    if (!window.confirm(`Delete “${d.name}”? This can't be undone.`)) return;
+    if (!window.confirm(t("documents.confirmDelete", { name: d.name }))) return;
     try {
       await del.mutateAsync(d);
-      toast.success("Document deleted");
+      toast.success(t("documents.documentDeleted"));
     } catch (e) {
-      toast.error(e instanceof ApiError ? e.message : "Could not delete");
+      toast.error(errorText(e, t("documents.couldNotDelete")));
     }
   };
 }
 
 export function useUploadDocument() {
+  const t = useTranslations();
+  const { errorText } = useApiErrors();
   const toast = useToast();
   const upload = useApiMutation((v: { dealId: number; category: DocumentCategory; file: File }) => {
     const form = new FormData();
@@ -42,25 +50,28 @@ export function useUploadDocument() {
     run: async (dealId: number, category: DocumentCategory, file: File) => {
       try {
         await upload.mutateAsync({ dealId, category, file });
-        toast.success("Document uploaded");
+        toast.success(t("documents.documentUploaded"));
         return true;
       } catch (e) {
-        toast.error(e instanceof ApiError ? e.message : "Upload failed");
+        toast.error(errorText(e, t("common.uploadFailed")));
         return false;
       }
     },
   };
 }
 
-export async function safeDownload(d: DocumentItem, onError: (m: string) => void) {
+/** `failedMessage` is the (already translated) text shown when the download fails. */
+export async function safeDownload(d: DocumentItem, onError: (m: string) => void, failedMessage: string) {
   try {
     await downloadFile(`/documents/${d.id}/download/`, d.name);
   } catch {
-    onError("Download failed");
+    onError(failedMessage);
   }
 }
 
 export function DocumentRow({ doc, canDelete }: { doc: DocumentItem; canDelete: boolean }) {
+  const t = useTranslations();
+  const { formatDate } = useFormat();
   const toast = useToast();
   const del = useDeleteDocument();
   return (
@@ -68,14 +79,14 @@ export function DocumentRow({ doc, canDelete }: { doc: DocumentItem; canDelete: 
       <div className="min-w-0 flex-1">
         <p className="truncate text-sm font-medium">{doc.name}</p>
         <p className="text-xs text-muted">
-          {doc.category_label} · {fileSize(doc.size)} · {doc.uploaded_by?.full_name ?? "Unknown"} · {formatDate(doc.created_at)}
+          {doc.category_label} · {fileSize(doc.size)} · {doc.uploaded_by?.full_name ?? t("common.unknown")} · {formatDate(doc.created_at)}
         </p>
       </div>
-      <Button size="sm" variant="ghost" aria-label={`Download ${doc.name}`} onClick={() => void safeDownload(doc, toast.error)}>
+      <Button size="sm" variant="ghost" aria-label={t("documents.downloadName", { name: doc.name })} onClick={() => void safeDownload(doc, toast.error, t("documents.downloadFailed"))}>
         <Download className="h-4 w-4" />
       </Button>
       {canDelete && (
-        <Button size="sm" variant="ghost" aria-label={`Delete ${doc.name}`} onClick={() => void del(doc)}>
+        <Button size="sm" variant="ghost" aria-label={t("documents.deleteName", { name: doc.name })} onClick={() => void del(doc)}>
           <Trash2 className="h-4 w-4" />
         </Button>
       )}
@@ -85,6 +96,8 @@ export function DocumentRow({ doc, canDelete }: { doc: DocumentItem; canDelete: 
 
 /** Required-document checklist + upload + list for one deal. */
 export function DealDocuments({ dealId }: { dealId: number }) {
+  const enums = useEnums();
+  const t = useTranslations();
   const { user, isManager } = useAuth();
   const checklist = useChecklist(dealId);
   const docs = useDocuments({ deal: dealId, page_size: 100 });
@@ -98,9 +111,9 @@ export function DealDocuments({ dealId }: { dealId: number }) {
     <div>
       <div className="border-b border-line p-4">
         <div className="mb-2 flex items-center justify-between">
-          <h3 className="text-xs font-semibold uppercase tracking-wide text-muted">Required documents</h3>
+          <h3 className="text-xs font-semibold uppercase tracking-wide text-muted">{t("documents.requiredDocuments")}</h3>
           <span className={missing.length ? "text-xs font-medium text-warn-fg" : "text-xs font-medium text-ok-fg"}>
-            {missing.length ? `${missing.length} missing` : "Complete"}
+            {missing.length ? `${missing.length} missing` : t("common.complete")}
           </span>
         </div>
         <ul className="grid grid-cols-1 gap-1.5 sm:grid-cols-2">
@@ -121,17 +134,16 @@ export function DealDocuments({ dealId }: { dealId: number }) {
             className="w-52"
             value={category}
             onChange={(e) => setCategory(e.target.value as DocumentCategory)}
-            aria-label="Document category"
+            aria-label={t("documents.documentCategory")}
           >
-            {optionsOf(DOCUMENT_CATEGORY).map((o) => (
+            {enums.options("documentCategory").map((o) => (
               <option key={o.value} value={o.value}>
                 {o.label}
               </option>
             ))}
           </Select>
           <Button icon={<Upload className="h-4 w-4" />} loading={uploader.pending} onClick={() => input.current?.click()}>
-            Upload
-          </Button>
+            {t("documents.upload")}</Button>
           <input
             ref={input}
             type="file"
@@ -142,11 +154,11 @@ export function DealDocuments({ dealId }: { dealId: number }) {
               if (file) await uploader.run(dealId, category, file);
             }}
           />
-          <span className="text-2xs text-muted">PDF, Office, images or text · max 10 MB</span>
+          <span className="text-2xs text-muted">{t("documents.pdfOfficeImagesOrText")}</span>
         </div>
       </div>
       {(docs.data?.results.length ?? 0) === 0 ? (
-        <EmptyState title="No documents uploaded" />
+        <EmptyState title={t("documents.noDocumentsUploaded")} />
       ) : (
         <ul className="divide-y divide-line">
           {docs.data!.results.map((d) => (

@@ -1,5 +1,7 @@
 import clsx from "clsx";
 
+import type { EnumKind } from "@/lib/enums";
+import { useEnums } from "@/lib/enums";
 import type { Tone } from "@/lib/constants";
 import {
   COMMISSION_STATUS,
@@ -46,17 +48,19 @@ export function Badge({
   );
 }
 
-type MetaMap = Record<string, { label: string; tone: Tone }>;
+type MetaMap = Record<string, { tone: Tone }>;
 
-function fromMap(map: MetaMap, key: string) {
-  const meta = map[key] ?? { label: key, tone: "idle" as Tone };
-  return <Badge tone={meta.tone}>{meta.label}</Badge>;
+/** A status badge: the tone comes from the table of the kind, the words from the catalogue; an unknown value from the server is shown as it is. */
+function StatusBadge({ kind, map, value }: { kind: EnumKind; map: MetaMap; value: string }) {
+  const enums = useEnums();
+  const meta = map[value] ?? { tone: "idle" as Tone };
+  return <Badge tone={meta.tone}>{enums.labelOrRaw(kind, value)}</Badge>;
 }
 
-export const LeadStatusBadge = ({ status }: { status: string }) => fromMap(LEAD_STATUS, status);
-export const PropertyStatusBadge = ({ status }: { status: string }) => fromMap(PROPERTY_STATUS, status);
-export const MatchStatusBadge = ({ status }: { status: string }) => fromMap(MATCH_STATUS, status);
-export const DealStageBadge = ({ stage }: { stage: string }) => fromMap(DEAL_STAGE, stage);
-export const ViewingStatusBadge = ({ status }: { status: string }) => fromMap(VIEWING_STATUS, status);
-export const CommissionStatusBadge = ({ status }: { status: string }) => fromMap(COMMISSION_STATUS, status);
-export const OfferStatusBadge = ({ status }: { status: string }) => fromMap(OFFER_STATUS, status);
+export const LeadStatusBadge = ({ status }: { status: string }) => <StatusBadge kind="leadStatus" map={LEAD_STATUS} value={status} />;
+export const PropertyStatusBadge = ({ status }: { status: string }) => <StatusBadge kind="propertyStatus" map={PROPERTY_STATUS} value={status} />;
+export const MatchStatusBadge = ({ status }: { status: string }) => <StatusBadge kind="matchStatus" map={MATCH_STATUS} value={status} />;
+export const DealStageBadge = ({ stage }: { stage: string }) => <StatusBadge kind="dealStage" map={DEAL_STAGE} value={stage} />;
+export const ViewingStatusBadge = ({ status }: { status: string }) => <StatusBadge kind="viewingStatus" map={VIEWING_STATUS} value={status} />;
+export const CommissionStatusBadge = ({ status }: { status: string }) => <StatusBadge kind="commissionStatus" map={COMMISSION_STATUS} value={status} />;
+export const OfferStatusBadge = ({ status }: { status: string }) => <StatusBadge kind="offerStatus" map={OFFER_STATUS} value={status} />;

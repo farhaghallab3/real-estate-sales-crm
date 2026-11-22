@@ -10,8 +10,10 @@ import { Button } from "@/components/ui/button";
 import { Field, FormError, Input, Select } from "@/components/ui/field";
 import { Card } from "@/components/ui/primitives";
 import { useToast } from "@/components/ui/toast";
-import { api, ApiError } from "@/lib/api";
+import { api } from "@/lib/api";
 import { useCompany, type CompanyConfig } from "@/lib/company";
+import { useTranslations } from "next-intl";
+import { useApiErrors } from "@/lib/use-api-errors";
 
 interface AdminSettings extends CompanyConfig {
   currency_locked: boolean;
@@ -25,6 +27,8 @@ const MAX_LOGO = 1024 * 1024;
 
 /** Company Admin only: name, currency, number format and logo of THIS company. Changes show for everyone straight away. */
 export function CompanySettingsCard() {
+  const t = useTranslations();
+  const { errorText } = useApiErrors();
   const toast = useToast();
   const router = useRouter();
   const qc = useQueryClient();
@@ -65,25 +69,25 @@ export function CompanySettingsCard() {
       const body: Partial<Form> = { ...values };
       if (settings.data?.currency_locked) delete body.currency_code;
       applied(await api<AdminSettings>("/company/settings/", { method: "PATCH", body }));
-      toast.success("Company settings saved");
+      toast.success(t("settings.companySettingsSaved"));
     } catch (e) {
-      setError(e instanceof ApiError ? e.message : "Could not save");
+      setError(errorText(e, t("common.couldNotSave")));
     }
   });
 
   const uploadLogo = async (file: File | undefined) => {
     setLogoError(null);
     if (!file) return;
-    if (!["image/png", "image/jpeg", "image/webp"].includes(file.type)) return setLogoError("Use a PNG, JPG or WEBP image.");
-    if (file.size > MAX_LOGO) return setLogoError("The logo must be 1 MB or smaller.");
+    if (!["image/png", "image/jpeg", "image/webp"].includes(file.type)) return setLogoError(t("settings.usePngJpgOrWebp"));
+    if (file.size > MAX_LOGO) return setLogoError(t("settings.logoMustMbOrSmaller"));
     setBusy(true);
     try {
       const body = new FormData();
       body.append("logo", file);
       applied(await api<AdminSettings>("/company/settings/logo/", { method: "POST", form: body }));
-      toast.success("Logo updated");
+      toast.success(t("settings.logoUpdated"));
     } catch (e) {
-      setLogoError(e instanceof ApiError ? e.message : "Could not upload the logo");
+      setLogoError(errorText(e, t("settings.couldNotUploadLogo")));
     } finally {
       setBusy(false);
       if (fileInput.current) fileInput.current.value = "";
@@ -95,9 +99,9 @@ export function CompanySettingsCard() {
     setBusy(true);
     try {
       applied(await api<AdminSettings>("/company/settings/logo/", { method: "DELETE" }));
-      toast.success("Logo removed");
+      toast.success(t("settings.logoRemoved"));
     } catch (e) {
-      setLogoError(e instanceof ApiError ? e.message : "Could not remove the logo");
+      setLogoError(errorText(e, t("settings.couldNotRemoveLogo")));
     } finally {
       setBusy(false);
     }
@@ -105,9 +109,9 @@ export function CompanySettingsCard() {
 
   const data = settings.data;
   return (
-    <Card title="Company">
-      {settings.isLoading && <p className="text-sm text-muted">Loading…</p>}
-      {settings.isError && <FormError message="Could not load the company settings." />}
+    <Card title={t("settings.company")}>
+      {settings.isLoading && <p className="text-sm text-muted">{t("common.loading")}</p>}
+      {settings.isError && <FormError message={t("settings.couldNotLoadCompanySettings")} />}
       {data && (
         <div className="space-y-5">
           <div className="flex flex-wrap items-center gap-4">
@@ -119,19 +123,18 @@ export function CompanySettingsCard() {
                   type="file"
                   accept="image/png,image/jpeg,image/webp"
                   className="sr-only"
-                  aria-label="Company logo file"
+                  aria-label={t("settings.companyLogoFile")}
                   onChange={(e) => void uploadLogo(e.target.files?.[0])}
                 />
                 <Button size="sm" loading={busy} onClick={() => fileInput.current?.click()}>
-                  {data.logo_url ? "Replace logo" : "Upload logo"}
+                  {data.logo_url ? t("settings.replaceLogo") : t("settings.uploadLogo")}
                 </Button>
                 {data.logo_url && (
                   <Button size="sm" disabled={busy} onClick={() => void removeLogo()}>
-                    Remove logo
-                  </Button>
+                    {t("settings.removeLogo")}</Button>
                 )}
               </div>
-              <p className="text-xs text-muted">PNG, JPG or WEBP, up to 1 MB. Optional: without one the default icon is shown.</p>
+              <p className="text-xs text-muted">{t("settings.pngJpgOrWebpUp")}</p>
               <FormError message={logoError} />
             </div>
           </div>
@@ -140,18 +143,18 @@ export function CompanySettingsCard() {
             <div className="sm:col-span-2">
               <FormError message={error} />
             </div>
-            <Field label="Company name" required error={form.formState.errors.company_name?.message}>
-              <Input maxLength={120} {...form.register("company_name", { required: "Required" })} />
+            <Field label={t("settings.companyName")} required error={form.formState.errors.company_name?.message}>
+              <Input maxLength={120} {...form.register("company_name", { required: t("settings.required") })} />
             </Field>
-            <Field label="Workspace label" required error={form.formState.errors.workspace_label?.message}>
-              <Input maxLength={60} {...form.register("workspace_label", { required: "Required" })} />
+            <Field label={t("settings.workspaceLabel")} required error={form.formState.errors.workspace_label?.message}>
+              <Input maxLength={60} {...form.register("workspace_label", { required: t("settings.required") })} />
             </Field>
             <Field
-              label="Base currency"
+              label={t("settings.baseCurrency")}
               hint={
                 data.currency_locked
-                  ? "Locked: this company already has prices or deals. Amounts are shown in this currency and never converted."
-                  : "Every amount is shown in this one currency, with no conversion. It locks once you add properties or deals."
+                  ? t("settings.lockedCompanyAlreadyHasPrices")
+                  : t("settings.everyAmountShownOneCurrency")
               }
             >
               <Select disabled={data.currency_locked} {...form.register("currency_code")}>
@@ -162,7 +165,7 @@ export function CompanySettingsCard() {
                 ))}
               </Select>
             </Field>
-            <Field label="Number & date format" hint="Only changes how numbers are written. The interface language stays English.">
+            <Field label={t("settings.numberDateFormat")} hint={t("settings.onlyChangesHowNumbersWritten")}>
               <Select {...form.register("locale")}>
                 {data.locales.map((l) => (
                   <option key={l} value={l}>
@@ -173,8 +176,7 @@ export function CompanySettingsCard() {
             </Field>
             <div className="sm:col-span-2">
               <Button type="submit" variant="primary" loading={form.formState.isSubmitting}>
-                Save company settings
-              </Button>
+                {t("settings.saveCompanySettings")}</Button>
             </div>
           </form>
         </div>

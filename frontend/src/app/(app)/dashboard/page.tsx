@@ -22,28 +22,36 @@ import {
   TableWrap,
   Td,
   Th,
-} from "@/components/ui/primitives";
+  Ltr,} from "@/components/ui/primitives";
 import { useAuth } from "@/lib/auth";
-import { DEAL_STAGE, LEAD_SOURCE } from "@/lib/constants";
-import { formatTime, formatWhen, pct, relative } from "@/lib/format";
-import { useMoney } from "@/lib/company";
+
+import { pct } from "@/lib/format";
+import { useMoney, useFormat } from "@/lib/company";
 import { useDashboard } from "@/lib/queries";
 import type { Task } from "@/types";
+import { useTranslations } from "next-intl";
+import { useEnums } from "@/lib/enums";
+import { useApiErrors } from "@/lib/use-api-errors";
 
+/** The reporting periods of the filter: the value is what the API takes, the words come from the catalogue. */
 const PERIODS = [
-  { value: 0, label: "All time" },
-  { value: 30, label: "Last 30 days" },
-  { value: 90, label: "Last 90 days" },
-  { value: 365, label: "Last 12 months" },
-];
+  { value: 0, key: "dashboard.periodAllTime" },
+  { value: 30, key: "dashboard.periodLast30Days" },
+  { value: 90, key: "dashboard.periodLast90Days" },
+  { value: 365, key: "dashboard.periodLast12Months" },
+] as const;
 
-function greeting(): string {
+function dayPart(): "Morning" | "Afternoon" | "Evening" {
   const h = new Date().getHours();
-  return h < 12 ? "Good morning" : h < 18 ? "Good afternoon" : "Good evening";
+  return h < 12 ? "Morning" : h < 18 ? "Afternoon" : "Evening";
 }
 
 export default function DashboardPage() {
+  const enums = useEnums();
+  const tr = useTranslations();
+  const { errorText } = useApiErrors();
   const { money, moneyCompact } = useMoney();
+  const { formatTime, formatWhen, relative } = useFormat();
   const { user, isManager } = useAuth();
   const [days, setDays] = useState(0);
   const { data, isLoading, error, refetch } = useDashboard(days);
@@ -52,7 +60,7 @@ export default function DashboardPage() {
   const [viewingOpen, setViewingOpen] = useState(false);
   const [editTask, setEditTask] = useState<Task | null>(null);
 
-  if (error) return <ErrorState message={(error as Error).message} onRetry={() => void refetch()} />;
+  if (error) return <ErrorState message={errorText(error)} onRetry={() => void refetch()} />;
 
   const m = data?.metrics;
   const maxPipeline = Math.max(1, ...(data?.pipeline.map((p) => p.count) ?? [1]));
@@ -62,25 +70,24 @@ export default function DashboardPage() {
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <h1 className="text-xl font-semibold">
-            {greeting()}, {user?.first_name || user?.full_name}
+            {tr(`dashboard.greeting${dayPart()}`)}, {user?.first_name || user?.full_name}
           </h1>
           <p className="text-sm text-muted">
-            {isManager ? "Team performance and what needs attention today." : "Your leads, tasks and deals at a glance."}
+            {isManager ? tr("dashboard.teamPerformanceWhatNeedsAttention") : tr("dashboard.leadsTasksDealsAtGlance")}
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <Select value={days} onChange={(e) => setDays(Number(e.target.value))} className="w-40" aria-label="Period">
+          <Select value={days} onChange={(e) => setDays(Number(e.target.value))} className="w-40" aria-label={tr("dashboard.period")}>
             {PERIODS.map((p) => (
               <option key={p.value} value={p.value}>
-                {p.label}
+                {tr(p.key)}
               </option>
             ))}
           </Select>
-          <Button onClick={() => setViewingOpen(true)}>Schedule viewing</Button>
-          <Button onClick={() => setTaskOpen(true)}>New task</Button>
+          <Button onClick={() => setViewingOpen(true)}>{tr("common.scheduleViewing")}</Button>
+          <Button onClick={() => setTaskOpen(true)}>{tr("common.newTask")}</Button>
           <Button variant="primary" icon={<Plus className="h-4 w-4" />} onClick={() => setLeadOpen(true)}>
-            Add lead
-          </Button>
+            {tr("common.addLead")}</Button>
         </div>
       </div>
 
@@ -90,16 +97,16 @@ export default function DashboardPage() {
           Array.from({ length: 10 }).map((_, i) => <Skeleton key={i} className="h-[74px]" />)
         ) : (
           <>
-            <Metric label="Total leads" value={m.total_leads} />
-            <Metric label="New leads" value={m.new_leads} hint="Awaiting first contact" />
-            <Metric label="Qualified leads" value={m.qualified_leads} />
-            <Metric label="Active deals" value={m.active_deals} hint="Open in pipeline" />
-            <Metric label="Viewings" value={m.viewings} />
-            <Metric label="Offers" value={m.offers} />
-            <Metric label="Closed deals" value={m.closed_deals} />
-            <Metric label="Sales value" value={moneyCompact(m.sales_value)} accent />
-            <Metric label="Commission (net)" value={money(m.commission)} accent />
-            <Metric label="Conversion rate" value={pct(m.conversion_rate)} hint="Closed ÷ total leads" />
+            <Metric label={tr("dashboard.totalLeads")} value={m.total_leads} />
+            <Metric label={tr("dashboard.newLeads")} value={m.new_leads} hint={tr("dashboard.awaitingFirstContact")} />
+            <Metric label={tr("dashboard.qualifiedLeads")} value={m.qualified_leads} />
+            <Metric label={tr("common.activeDeals")} value={m.active_deals} hint={tr("dashboard.openPipeline")} />
+            <Metric label={tr("common.viewings")} value={m.viewings} />
+            <Metric label={tr("common.offers")} value={m.offers} />
+            <Metric label={tr("common.closedDeals")} value={m.closed_deals} />
+            <Metric label={tr("common.salesValue")} value={moneyCompact(m.sales_value)} accent />
+            <Metric label={tr("dashboard.commissionNet")} value={money(m.commission)} accent />
+            <Metric label={tr("dashboard.conversionRate")} value={pct(m.conversion_rate)} hint={tr("dashboard.closedTotalLeads")} />
           </>
         )}
       </div>
@@ -107,13 +114,12 @@ export default function DashboardPage() {
       <div className="grid grid-cols-1 gap-4 xl:grid-cols-3">
         {/* Today's tasks */}
         <Card
-          title="Today's tasks"
+          title={tr("dashboard.todaysTasks")}
           bodyClassName="p-0"
           padded={false}
           action={
             <Link href="/tasks" className="text-xs font-medium text-brand hover:underline">
-              All tasks
-            </Link>
+              {tr("dashboard.allTasks")}</Link>
           }
         >
           {isLoading ? (
@@ -123,7 +129,7 @@ export default function DashboardPage() {
               <Skeleton className="h-8" />
             </div>
           ) : data!.todays_tasks.length === 0 ? (
-            <EmptyState title="Nothing due today" description="Follow-ups you create will show up here." />
+            <EmptyState title={tr("dashboard.nothingDueToday")} description={tr("dashboard.followUpsCreateWillShow")} />
           ) : (
             <ul className="divide-y divide-line">
               {data!.todays_tasks.map((t) => (
@@ -135,12 +141,11 @@ export default function DashboardPage() {
 
         {/* Upcoming viewings */}
         <Card
-          title="Upcoming viewings"
+          title={tr("dashboard.upcomingViewings")}
           padded={false}
           action={
             <Link href="/viewings" className="text-xs font-medium text-brand hover:underline">
-              Calendar
-            </Link>
+              {tr("dashboard.calendar")}</Link>
           }
         >
           {isLoading ? (
@@ -149,7 +154,7 @@ export default function DashboardPage() {
               <Skeleton className="h-10" />
             </div>
           ) : data!.upcoming_viewings.length === 0 ? (
-            <EmptyState title="No upcoming viewings" action={<Button onClick={() => setViewingOpen(true)}>Schedule one</Button>} />
+            <EmptyState title={tr("dashboard.noUpcomingViewings")} action={<Button onClick={() => setViewingOpen(true)}>{tr("dashboard.scheduleOne")}</Button>} />
           ) : (
             <ul className="divide-y divide-line">
               {data!.upcoming_viewings.map((v) => (
@@ -179,11 +184,10 @@ export default function DashboardPage() {
 
         {/* Pipeline */}
         <Card
-          title="Sales pipeline"
+          title={tr("common.salesPipeline")}
           action={
             <Link href="/pipeline" className="text-xs font-medium text-brand hover:underline">
-              Open board
-            </Link>
+              {tr("dashboard.openBoard")}</Link>
           }
         >
           {isLoading ? (
@@ -194,7 +198,7 @@ export default function DashboardPage() {
                 <li key={p.stage}>
                   <Link href="/pipeline" className="group block">
                     <div className="mb-1 flex items-baseline justify-between text-xs">
-                      <span className="font-medium group-hover:underline">{DEAL_STAGE[p.stage].label}</span>
+                      <span className="font-medium group-hover:underline">{enums.label("dealStage", p.stage)}</span>
                       <span className="tabular text-muted">
                         {p.count} · {moneyCompact(p.value)}
                       </span>
@@ -218,13 +222,12 @@ export default function DashboardPage() {
       <div className="grid grid-cols-1 gap-4 xl:grid-cols-3">
         {/* Recent leads */}
         <Card
-          title="Recent leads"
+          title={tr("dashboard.recentLeads")}
           padded={false}
           className="xl:col-span-2"
           action={
             <Link href="/leads" className="text-xs font-medium text-brand hover:underline">
-              View all
-            </Link>
+              {tr("dashboard.viewAll")}</Link>
           }
         >
           {isLoading ? (
@@ -232,17 +235,17 @@ export default function DashboardPage() {
               <Skeleton className="h-32" />
             </div>
           ) : data!.recent_leads.length === 0 ? (
-            <EmptyState title="No leads yet" action={<Button variant="primary" onClick={() => setLeadOpen(true)}>Add lead</Button>} />
+            <EmptyState title={tr("common.noLeadsYet")} action={<Button variant="primary" onClick={() => setLeadOpen(true)}>{tr("common.addLead")}</Button>} />
           ) : (
             <TableWrap>
               <Table>
                 <thead>
                   <tr>
-                    <Th>Client</Th>
-                    <Th>Source</Th>
-                    <Th>Status</Th>
-                    {isManager && <Th>Salesperson</Th>}
-                    <Th>Added</Th>
+                    <Th>{tr("common.client")}</Th>
+                    <Th>{tr("common.source")}</Th>
+                    <Th>{tr("common.status")}</Th>
+                    {isManager && <Th>{tr("common.salesperson")}</Th>}
+                    <Th>{tr("dashboard.added")}</Th>
                   </tr>
                 </thead>
                 <tbody>
@@ -252,9 +255,9 @@ export default function DashboardPage() {
                         <Link href={`/leads/${l.id}`} className="font-medium hover:underline">
                           {l.name}
                         </Link>
-                        <div className="text-xs text-muted">{l.phone}</div>
+                        <div className="text-xs text-muted"><Ltr>{l.phone}</Ltr></div>
                       </Td>
-                      <Td className="text-muted">{LEAD_SOURCE[l.source]}</Td>
+                      <Td className="text-muted">{enums.label("leadSource", l.source)}</Td>
                       <Td>
                         <LeadStatusBadge status={l.status} />
                       </Td>
@@ -273,13 +276,13 @@ export default function DashboardPage() {
         </Card>
 
         {/* Activity */}
-        <Card title="Recent activity" padded={false}>
+        <Card title={tr("dashboard.recentActivity")} padded={false}>
           {isLoading ? (
             <div className="p-4">
               <Skeleton className="h-40" />
             </div>
           ) : data!.recent_activity.length === 0 ? (
-            <EmptyState title="No activity yet" />
+            <EmptyState title={tr("common.noActivityYet")} />
           ) : (
             <ul className="divide-y divide-line">
               {data!.recent_activity.map((a) => (
@@ -294,7 +297,7 @@ export default function DashboardPage() {
                     )}
                   </p>
                   <p className="mt-0.5 text-xs text-muted">
-                    {a.actor?.full_name ?? "System"} · {relative(a.created_at)}
+                    {a.actor?.full_name ?? tr("common.system")} · {relative(a.created_at)}
                   </p>
                 </li>
               ))}
@@ -304,18 +307,18 @@ export default function DashboardPage() {
       </div>
 
       {isManager && data && data.team.length > 0 && (
-        <Card title="Team performance" padded={false}>
+        <Card title={tr("dashboard.teamPerformance")} padded={false}>
           <TableWrap>
             <Table>
               <thead>
                 <tr>
-                  <Th>Salesperson</Th>
-                  <Th className="text-right">Leads</Th>
-                  <Th className="text-right">Viewings</Th>
-                  <Th className="text-right">Offers</Th>
-                  <Th className="text-right">Closed</Th>
-                  <Th className="text-right">Sales value</Th>
-                  <Th className="text-right">Commission</Th>
+                  <Th>{tr("common.salesperson")}</Th>
+                  <Th className="text-end">{tr("common.leads")}</Th>
+                  <Th className="text-end">{tr("common.viewings")}</Th>
+                  <Th className="text-end">{tr("common.offers")}</Th>
+                  <Th className="text-end">{tr("common.closed")}</Th>
+                  <Th className="text-end">{tr("common.salesValue")}</Th>
+                  <Th className="text-end">{tr("common.commission")}</Th>
                 </tr>
               </thead>
               <tbody>
@@ -324,12 +327,12 @@ export default function DashboardPage() {
                     <Td>
                       <PersonChip name={r.name} />
                     </Td>
-                    <Td className="tabular text-right">{r.leads}</Td>
-                    <Td className="tabular text-right">{r.viewings}</Td>
-                    <Td className="tabular text-right">{r.offers}</Td>
-                    <Td className="tabular text-right">{r.closed_deals}</Td>
-                    <Td className="tabular text-right">{money(r.sales_value)}</Td>
-                    <Td className="tabular text-right">{money(r.commission)}</Td>
+                    <Td className="tabular text-end">{r.leads}</Td>
+                    <Td className="tabular text-end">{r.viewings}</Td>
+                    <Td className="tabular text-end">{r.offers}</Td>
+                    <Td className="tabular text-end">{r.closed_deals}</Td>
+                    <Td className="tabular text-end">{money(r.sales_value)}</Td>
+                    <Td className="tabular text-end">{money(r.commission)}</Td>
                   </tr>
                 ))}
               </tbody>

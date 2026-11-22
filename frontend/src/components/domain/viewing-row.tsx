@@ -6,21 +6,25 @@ import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { ViewingStatusBadge } from "@/components/ui/badge";
 import { useToast } from "@/components/ui/toast";
-import { api, ApiError } from "@/lib/api";
-import { formatTime, formatWhen } from "@/lib/format";
+import { api } from "@/lib/api";
 import { useApiMutation } from "@/lib/queries";
+import { useFormat } from "@/lib/company";
 import type { Viewing } from "@/types";
+import { useTranslations } from "next-intl";
+import { useApiErrors } from "@/lib/use-api-errors";
 
 export function useCancelViewing() {
+  const t = useTranslations();
+  const { errorText } = useApiErrors();
   const toast = useToast();
   const cancel = useApiMutation((v: Viewing) => api(`/viewings/${v.id}/cancel/`, { method: "POST", body: {} }));
   return async (viewing: Viewing) => {
-    if (!window.confirm(`Cancel the viewing with ${viewing.lead.name}?`)) return;
+    if (!window.confirm(t("viewings.confirmCancel", { name: viewing.lead.name }))) return;
     try {
       await cancel.mutateAsync(viewing);
-      toast.success("Viewing cancelled");
+      toast.success(t("viewings.viewingCancelled"));
     } catch (e) {
-      toast.error(e instanceof ApiError ? e.message : "Could not cancel");
+      toast.error(errorText(e, t("viewings.couldNotCancel")));
     }
   };
 }
@@ -38,6 +42,8 @@ export function ViewingItem({
   showProperty?: boolean;
   showAssignee?: boolean;
 }) {
+  const t = useTranslations();
+  const { formatWhen, formatTime } = useFormat();
   const cancel = useCancelViewing();
   const scheduled = viewing.status === "scheduled";
   return (
@@ -67,9 +73,8 @@ export function ViewingItem({
           {scheduled && (
             <>
               <Button size="sm" icon={<Check className="h-3.5 w-3.5" />} onClick={() => onComplete(viewing)}>
-                Complete
-              </Button>
-              <Button size="sm" variant="ghost" className="px-2" onClick={() => void cancel(viewing)} aria-label="Cancel viewing">
+                {t("common.complete")}</Button>
+              <Button size="sm" variant="ghost" className="px-2" onClick={() => void cancel(viewing)} aria-label={t("viewings.cancelViewing")}>
                 <X className="h-3.5 w-3.5" />
               </Button>
             </>
@@ -78,7 +83,7 @@ export function ViewingItem({
       </div>
       {(viewing.feedback || viewing.rating) && (
         <p className="mt-2 rounded-md bg-canvas px-2.5 py-1.5 text-xs text-muted">
-          {viewing.rating ? <span className="font-medium text-ink">Interest {viewing.rating}/5 · </span> : null}
+          {viewing.rating ? <span className="font-medium text-ink">{t("viewings.interestRating", { rating: viewing.rating })}{" "}</span> : null}
           {viewing.feedback}
         </p>
       )}

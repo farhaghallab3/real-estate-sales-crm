@@ -1,6 +1,6 @@
 "use client";
 
-import { addDays, addWeeks, endOfWeek, format, isSameDay, setHours, startOfDay, startOfWeek, subWeeks } from "date-fns";
+import { addDays, addWeeks, format, isSameDay, setHours, startOfDay, subWeeks } from "date-fns";
 import clsx from "clsx";
 import { ChevronLeft, ChevronRight, Plus } from "lucide-react";
 import Link from "next/link";
@@ -13,15 +13,22 @@ import { ViewingStatusBadge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, EmptyState, ErrorState, PageHeader, Pagination, Tabs, TableSkeleton } from "@/components/ui/primitives";
 import { useAuth } from "@/lib/auth";
-import { formatTime } from "@/lib/format";
 import { useViewings } from "@/lib/queries";
 import { useUrlState } from "@/lib/use-url-state";
+import { listViewingParams, weekRange, weekViewingParams } from "@/lib/viewings-query";
+import { useFormat, useWeek } from "@/lib/company";
 import type { Viewing } from "@/types";
+import { useTranslations } from "next-intl";
+import { useApiErrors } from "@/lib/use-api-errors";
 
 type Tab = "week" | "scheduled" | "completed" | "cancelled";
 const PAGE_SIZE = 20;
 
 export default function ViewingsPage() {
+  const t = useTranslations();
+  const { errorText } = useApiErrors();
+  const { formatTime, dayMonth, dayMonthYear, weekday } = useFormat();
+  const { firstDay } = useWeek();
   const { isManager } = useAuth();
   const [f, setF] = useUrlState({ tab: "week", week: "", assigned: "", page: "1" });
   const tab = f.tab as Tab;
@@ -30,32 +37,17 @@ export default function ViewingsPage() {
   const [completing, setCompleting] = useState<Viewing | null>(null);
 
   const anchor = f.week ? new Date(f.week) : new Date();
-  const weekStart = startOfWeek(anchor, { weekStartsOn: 1 });
-  const weekEnd = addDays(endOfWeek(anchor, { weekStartsOn: 1 }), 0);
+  const { weekStart, weekEnd } = weekRange({ anchor, firstDay });
   const weekStartMs = weekStart.getTime();
   const days = useMemo(() => Array.from({ length: 7 }, (_, i) => addDays(new Date(weekStartMs), i)), [weekStartMs]);
 
-  const weekQuery = useViewings(
-    {
-      start_after: weekStart.toISOString(),
-      start_before: addDays(startOfDay(weekEnd), 1).toISOString(),
-      assigned_to: f.assigned,
-      ordering: "start_at",
-      page_size: 200,
-    },
-    tab === "week",
-  );
-  const listQuery = useViewings(
-    {
-      status: tab === "week" ? "" : tab,
-      ...(tab === "scheduled" ? { start_after: new Date().toISOString() } : {}),
-      assigned_to: f.assigned,
-      ordering: tab === "scheduled" ? "start_at" : "-start_at",
-      page: f.page,
-      page_size: PAGE_SIZE,
-    },
-    tab !== "week",
-  );
+  // "Upcoming" is measured from the moment the view was opened or last changed. The clock is read here, once per genuine change (tab, filter, page), and NOT
+  // while building the parameters: a new Date() on every render gave a new query key on every render and the list was requested again and again.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const nowIso = useMemo(() => new Date().toISOString(), [tab, f.assigned, f.page]);
+
+  const weekQuery = useViewings(weekViewingParams({ anchor, firstDay, assigned: f.assigned }, 200), tab === "week");
+  const listQuery = useViewings(listViewingParams({ tab, assigned: f.assigned, page: f.page, nowIso }, PAGE_SIZE), tab !== "week");
 
   const shiftWeek = (dir: -1 | 0 | 1) =>
     setF({ week: dir === 0 ? "" : (dir === 1 ? addWeeks(anchor, 1) : subWeeks(anchor, 1)).toISOString() }, false);
@@ -70,8 +62,8 @@ export default function ViewingsPage() {
   return (
     <div>
       <PageHeader
-        title="Viewings"
-        description="Weekly schedule, completed viewings and client feedback."
+        title={t("common.viewings")}
+        description={t("viewings.weeklyScheduleCompletedViewingsClient")}
         actions={
           <>
             {isManager && (
@@ -79,13 +71,12 @@ export default function ViewingsPage() {
                 className="w-44"
                 value={f.assigned ? Number(f.assigned) : null}
                 onChange={(id) => setF({ assigned: id ? String(id) : "" })}
-                emptyLabel="All salespeople"
-                aria-label="Salesperson"
+                emptyLabel={t("common.allSalespeople")}
+                aria-label={t("common.salesperson")}
               />
             )}
             <Button variant="primary" icon={<Plus className="h-4 w-4" />} onClick={() => openSchedule()}>
-              Schedule viewing
-            </Button>
+              {t("common.scheduleViewing")}</Button>
           </>
         }
       />
@@ -96,10 +87,10 @@ export default function ViewingsPage() {
           value={tab}
           onChange={(v) => setF({ tab: v })}
           tabs={[
-            { value: "week", label: "Week" },
-            { value: "scheduled", label: "Upcoming" },
-            { value: "completed", label: "Completed" },
-            { value: "cancelled", label: "Cancelled" },
+            { value: "week", label: t("viewings.week") },
+            { value: "scheduled", label: t("common.upcoming") },
+            { value: "completed", label: t("common.completed") },
+            { value: "cancelled", label: t("viewings.cancelled") },
           ]}
         />
 
@@ -107,25 +98,24 @@ export default function ViewingsPage() {
           <>
             <div className="flex items-center justify-between border-b border-line px-3 py-2">
               <div className="flex items-center gap-1.5">
-                <Button size="sm" onClick={() => shiftWeek(-1)} aria-label="Previous week">
-                  <ChevronLeft className="h-4 w-4" />
+                <Button size="sm" onClick={() => shiftWeek(-1)} aria-label={t("viewings.previousWeek")}>
+                  <ChevronLeft className="h-4 w-4 rtl:-scale-x-100" />
                 </Button>
                 <Button size="sm" onClick={() => shiftWeek(0)}>
-                  Today
-                </Button>
-                <Button size="sm" onClick={() => shiftWeek(1)} aria-label="Next week">
-                  <ChevronRight className="h-4 w-4" />
+                  {t("viewings.today")}</Button>
+                <Button size="sm" onClick={() => shiftWeek(1)} aria-label={t("viewings.nextWeek")}>
+                  <ChevronRight className="h-4 w-4 rtl:-scale-x-100" />
                 </Button>
               </div>
               <p className="text-sm font-medium tabular">
-                {format(weekStart, "MMM d")} – {format(weekEnd, "MMM d, yyyy")}
+                {dayMonth(weekStart)} – {dayMonthYear(weekEnd)}
               </p>
             </div>
             {weekQuery.error ? (
-              <ErrorState message={(weekQuery.error as Error).message} onRetry={() => void weekQuery.refetch()} />
+              <ErrorState message={errorText(weekQuery.error)} onRetry={() => void weekQuery.refetch()} />
             ) : (
               <div className="scrollbar-thin overflow-x-auto">
-                <div className="grid min-w-[880px] grid-cols-7 divide-x divide-line">
+                <div className="grid min-w-[880px] grid-cols-7 divide-x rtl:divide-x-reverse divide-line">
                   {days.map((day) => {
                     const items = weekViewings.filter((v) => isSameDay(new Date(v.start_at), day));
                     const today = isSameDay(day, new Date());
@@ -134,13 +124,13 @@ export default function ViewingsPage() {
                         <button
                           onClick={() => openSchedule(day)}
                           className={clsx(
-                            "group flex w-full items-center justify-between border-b border-line px-2.5 py-2 text-left hover:bg-canvas",
+                            "group flex w-full items-center justify-between border-b border-line px-2.5 py-2 text-start hover:bg-canvas",
                             today && "bg-brand-50",
                           )}
-                          title="Schedule a viewing on this day"
+                          title={t("viewings.scheduleViewingDay")}
                         >
                           <span>
-                            <span className="block text-2xs font-semibold uppercase text-muted">{format(day, "EEE")}</span>
+                            <span className="block text-2xs font-semibold uppercase text-muted">{weekday(day)}</span>
                             <span className={clsx("text-sm font-semibold", today && "text-brand")}>{format(day, "d")}</span>
                           </span>
                           <Plus className="h-3.5 w-3.5 text-muted opacity-0 group-hover:opacity-100" />
@@ -174,8 +164,7 @@ export default function ViewingsPage() {
                                     onClick={() => setCompleting(v)}
                                     className="text-2xs font-medium text-brand hover:underline"
                                   >
-                                    Complete
-                                  </button>
+                                    {t("common.complete")}</button>
                                 )}
                               </div>
                             </div>
@@ -191,15 +180,14 @@ export default function ViewingsPage() {
         ) : listQuery.isLoading ? (
           <TableSkeleton cols={3} rows={5} />
         ) : listQuery.error ? (
-          <ErrorState message={(listQuery.error as Error).message} onRetry={() => void listQuery.refetch()} />
+          <ErrorState message={errorText(listQuery.error)} onRetry={() => void listQuery.refetch()} />
         ) : listQuery.data!.results.length === 0 ? (
           <EmptyState
-            title={`No ${tab === "scheduled" ? "upcoming" : tab} viewings`}
+            title={t("viewings.noValueViewings", { value: tab === "scheduled" ? "upcoming" : tab })}
             action={
               tab === "scheduled" ? (
                 <Button variant="primary" onClick={() => openSchedule()}>
-                  Schedule viewing
-                </Button>
+                  {t("common.scheduleViewing")}</Button>
               ) : undefined
             }
           />

@@ -15,30 +15,44 @@ import { Button } from "@/components/ui/button";
 import { Field, Input, Select, Textarea } from "@/components/ui/field";
 import { Card, EmptyState, ErrorState, Kv, PersonChip, Skeleton } from "@/components/ui/primitives";
 import { useToast } from "@/components/ui/toast";
-import { api, ApiError } from "@/lib/api";
-import { OFFER_STATUS, optionsOf } from "@/lib/constants";
-import { formatDate, formatDateTime } from "@/lib/format";
-import { useMoney } from "@/lib/company";
+import { api } from "@/lib/api";
+
+import { useMoney, useFormat } from "@/lib/company";
 import { useApiMutation, useDeal, useTasks } from "@/lib/queries";
 import type { Commission, DealStage, Task } from "@/types";
+import { useTranslations } from "next-intl";
+import { useEnums } from "@/lib/enums";
+import { useApiErrors } from "@/lib/use-api-errors";
 
 /** Rows of the commission card. The server only sends what the signed-in role may see, so render what is present. */
-function commissionRows(c: Commission, money2: (v: string | number | null | undefined) => string): [string, string][] {
-  const rows: [string, string][] = [["Sale price", money2(c.sale_price)]];
+interface CommissionLabels {
+  salePrice: string;
+  rate: (percent: number) => string;
+  agentSplitPercent: (percent: number) => string;
+  agentSplit: string;
+  deductions: string;
+}
+
+function commissionRows(c: Commission, money2: (v: string | number | null | undefined) => string, labels: CommissionLabels): [string, string][] {
+  const rows: [string, string][] = [[labels.salePrice, money2(c.sale_price)]];
   if (c.commission_rate !== undefined && c.gross_commission !== undefined) {
-    rows.push([`Rate (${Number(c.commission_rate)}%)`, money2(c.gross_commission)]);
+    rows.push([labels.rate(Number(c.commission_rate)), money2(c.gross_commission)]);
   }
   if (c.agent_split !== undefined && c.agent_commission !== undefined) {
-    rows.push([`Agent split (${Number(c.agent_split)}%)`, money2(c.agent_commission)]);
+    rows.push([labels.agentSplitPercent(Number(c.agent_split)), money2(c.agent_commission)]);
   } else if (c.agent_split !== undefined) {
-    rows.push(["Agent split", `${Number(c.agent_split)}%`]);
+    rows.push([labels.agentSplit, `${Number(c.agent_split)}%`]);
   }
-  if (c.deductions !== undefined) rows.push(["Deductions", `− ${money2(c.deductions)}`]);
+  if (c.deductions !== undefined) rows.push([labels.deductions, `− ${money2(c.deductions)}`]);
   return rows;
 }
 
 export default function DealDetailPage() {
+  const enums = useEnums();
+  const tr = useTranslations();
+  const { errorText } = useApiErrors();
   const { money, money2 } = useMoney();
+  const { formatDate, formatDateTime } = useFormat();
   const params = useParams<{ id: string }>();
   const id = Number(params.id);
   const toast = useToast();
@@ -66,7 +80,7 @@ export default function DealDetailPage() {
   );
 
   if (deal.isLoading) return <Skeleton className="h-64" />;
-  if (deal.error || !deal.data) return <ErrorState message={(deal.error as Error | null)?.message ?? "Deal not found"} />;
+  if (deal.error || !deal.data) return <ErrorState message={errorText(deal.error, tr("deals.dealNotFound"))} />;
   const d = deal.data;
   const open = d.stage !== "closed" && d.stage !== "lost";
 
@@ -75,17 +89,16 @@ export default function DealDetailPage() {
     if (stage === "lost" || stage === "closed") return setTarget(stage);
     try {
       await move.mutateAsync(stage);
-      toast.success("Stage updated");
+      toast.success(tr("deals.stageUpdated"));
     } catch (e) {
-      toast.error(e instanceof ApiError ? e.message : "Could not move deal");
+      toast.error(errorText(e, tr("common.couldNotMoveDeal")));
     }
   };
 
   return (
     <div className="space-y-4">
       <Link href="/pipeline" className="inline-flex items-center gap-1 text-xs text-muted hover:text-ink">
-        <ArrowLeft className="h-3.5 w-3.5" /> Pipeline
-      </Link>
+        <ArrowLeft className="h-3.5 w-3.5 rtl:-scale-x-100" /> {" "}{tr("deals.pipeline")}</Link>
 
       <Card>
         <div className="flex flex-wrap items-start justify-between gap-4">
@@ -105,40 +118,39 @@ export default function DealDetailPage() {
             </p>
           </div>
           <div className="w-full sm:w-52">
-            <Field label="Move to stage">
+            <Field label={tr("deals.moveStage")}>
               <StageSelect value={d.stage} onChange={(s) => void changeStage(s)} disabled={d.stage === "closed"} />
             </Field>
           </div>
         </div>
         <dl className="mt-4 grid grid-cols-2 gap-x-6 gap-y-3 border-t border-line pt-4 sm:grid-cols-5">
-          <Kv label="Asking price">{money(d.property.price)}</Kv>
-          <Kv label="Offer amount">{money(d.offer_amount)}</Kv>
-          <Kv label="Sale price">{money(d.sale_price)}</Kv>
-          <Kv label="Expected close">{d.expected_close_date ? formatDate(d.expected_close_date) : ""}</Kv>
-          <Kv label="Salesperson">
+          <Kv label={tr("deals.askingPrice")}>{money(d.property.price)}</Kv>
+          <Kv label={tr("deals.offerAmount")}>{money(d.offer_amount)}</Kv>
+          <Kv label={tr("common.salePrice")}>{money(d.sale_price)}</Kv>
+          <Kv label={tr("common.expectedClose")}>{d.expected_close_date ? formatDate(d.expected_close_date) : ""}</Kv>
+          <Kv label={tr("common.salesperson")}>
             <PersonChip name={d.assigned_to?.full_name} />
           </Kv>
         </dl>
         {d.stage === "lost" && d.lost_reason && (
-          <p className="mt-3 rounded-md bg-bad-bg px-3 py-2 text-sm text-bad-fg">Lost: {d.lost_reason}</p>
+          <p className="mt-3 rounded-md bg-bad-bg px-3 py-2 text-sm text-bad-fg">{tr("deals.lostLostReason", { lost_reason: d.lost_reason })}</p>
         )}
       </Card>
 
       <div className="grid grid-cols-1 gap-4 xl:grid-cols-3">
         <div className="space-y-4 xl:col-span-2">
           <Card
-            title="Offers"
+            title={tr("common.offers")}
             padded={false}
             action={
               open && (
                 <Button size="sm" variant="primary" onClick={() => setOfferOpen(true)}>
-                  Add offer
-                </Button>
+                  {tr("deals.addOffer")}</Button>
               )
             }
           >
             {d.offers.length === 0 ? (
-              <EmptyState title="No offers yet" />
+              <EmptyState title={tr("deals.noOffersYet")} />
             ) : (
               <ul className="divide-y divide-line">
                 {d.offers.map((o) => (
@@ -155,17 +167,17 @@ export default function DealDetailPage() {
                       <Select
                         className="h-8 w-36 text-xs"
                         value={o.status}
-                        aria-label="Offer status"
+                        aria-label={tr("deals.offerStatus")}
                         onChange={async (e) => {
                           try {
                             await setOffer.mutateAsync({ offerId: o.id, status: e.target.value });
-                            toast.success("Offer updated");
+                            toast.success(tr("deals.offerUpdated"));
                           } catch (err) {
-                            toast.error(err instanceof ApiError ? err.message : "Could not update offer");
+                            toast.error(errorText(err, tr("deals.couldNotUpdateOffer")));
                           }
                         }}
                       >
-                        {optionsOf(OFFER_STATUS).map((s) => (
+                        {enums.options("offerStatus").map((s) => (
                           <option key={s.value} value={s.value}>
                             {s.label}
                           </option>
@@ -178,21 +190,20 @@ export default function DealDetailPage() {
             )}
           </Card>
 
-          <Card title="Documents" padded={false}>
+          <Card title={tr("common.documents")} padded={false}>
             <DealDocuments dealId={id} />
           </Card>
 
           <Card
-            title="Tasks"
+            title={tr("deals.tasks")}
             padded={false}
             action={
               <Button size="sm" onClick={() => setTaskOpen(true)}>
-                Add task
-              </Button>
+                {tr("deals.addTask")}</Button>
             }
           >
             {(tasks.data?.results.length ?? 0) === 0 ? (
-              <EmptyState title="No tasks on this deal" />
+              <EmptyState title={tr("deals.noTasksDeal")} />
             ) : (
               <ul className="divide-y divide-line">
                 {tasks.data!.results.map((t) => (
@@ -204,51 +215,56 @@ export default function DealDetailPage() {
         </div>
 
         <div className="space-y-4">
-          <Card title="Commission">
+          <Card title={tr("common.commission")}>
             {d.commission ? (
               <div className="space-y-2 text-sm">
                 <div className="flex items-center justify-between">
-                  <span className="text-muted">Status</span>
+                  <span className="text-muted">{tr("common.status")}</span>
                   <CommissionStatusBadge status={d.commission.status} />
                 </div>
-                {commissionRows(d.commission, money2).map(([k, v]) => (
+                {commissionRows(d.commission, money2, {
+                  salePrice: tr("common.salePrice"),
+                  rate: (rate) => tr("deals.ratePercent", { rate }),
+                  agentSplitPercent: (split) => tr("deals.agentSplitPercent", { split }),
+                  agentSplit: tr("deals.agentSplit"),
+                  deductions: tr("deals.commissionDeductions"),
+                }).map(([k, v]) => (
                   <div key={k} className="flex items-center justify-between">
                     <span className="text-muted">{k}</span>
                     <span className="tabular">{v}</span>
                   </div>
                 ))}
                 <div className="flex items-center justify-between border-t border-line pt-2 text-base font-semibold">
-                  <span>Net commission</span>
+                  <span>{tr("deals.netCommission")}</span>
                   <span className="tabular">{money2(d.commission.net_commission)}</span>
                 </div>
               </div>
             ) : (
-              <p className="text-sm text-muted">Generated automatically when the deal is closed.</p>
+              <p className="text-sm text-muted">{tr("deals.generatedAutomaticallyWhenDealClosed")}</p>
             )}
           </Card>
 
-          <Card title="Deal notes">
+          <Card title={tr("deals.dealNotes")}>
             <form
               className="space-y-3"
               onSubmit={handleSubmit(async (v) => {
                 try {
                   await save.mutateAsync(v);
-                  toast.success("Deal updated");
+                  toast.success(tr("deals.dealUpdated"));
                 } catch (e) {
-                  toast.error(e instanceof ApiError ? e.message : "Could not save");
+                  toast.error(errorText(e, tr("common.couldNotSave")));
                 }
               })}
             >
-              <Field label="Expected close date">
+              <Field label={tr("common.expectedCloseDate")}>
                 <Input type="date" disabled={!open} {...register("expected_close_date")} />
               </Field>
-              <Field label="Notes">
+              <Field label={tr("common.notes")}>
                 <Textarea rows={4} disabled={!open} {...register("notes")} />
               </Field>
               {open && (
                 <Button type="submit" size="sm" loading={save.isPending}>
-                  Save
-                </Button>
+                  {tr("common.save")}</Button>
               )}
             </form>
           </Card>

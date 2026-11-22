@@ -11,13 +11,16 @@ import { Modal } from "@/components/ui/modal";
 import { useToast } from "@/components/ui/toast";
 import { api, ApiError } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
-import { DEAL_STAGE, optionsOf } from "@/lib/constants";
-import { formatDateTime, toLocalInput } from "@/lib/format";
-import { useCompany, useMoney } from "@/lib/company";
+
+import { toLocalInput } from "@/lib/format";
+import { useCompany, useMoney, useFormat } from "@/lib/company";
 import { useApiMutation } from "@/lib/queries";
 import type { Deal, DealStage, LeadMini, PropertyMini, Viewing, ViewingConflict } from "@/types";
 
 import { LeadPicker, PropertyPicker, UserSelect } from "./pickers";
+import { useTranslations } from "next-intl";
+import { useEnums } from "@/lib/enums";
+import { useApiErrors } from "@/lib/use-api-errors";
 
 interface Ref {
   id: number;
@@ -47,6 +50,9 @@ export function ViewingFormModal({
   property?: PropertyMini | null;
   start?: Date;
 }) {
+  const tr = useTranslations();
+  const { errorText } = useApiErrors();
+  const { formatDateTime } = useFormat();
   const { isManager, user } = useAuth();
   const toast = useToast();
   const [lead, setLead] = useState<Ref | null>(null);
@@ -103,7 +109,7 @@ export function ViewingFormModal({
 
   const create = useApiMutation((acknowledge: boolean) => {
     const r = range();
-    if (!r || !lead || !property) throw new ApiError(400, { detail: "Missing fields" });
+    if (!r || !lead || !property) throw new Error(tr("workflows.missingFields")); // the form checks this first: a safety net, never an HTTP answer
     return api<Viewing>("/viewings/", {
       method: "POST",
       body: {
@@ -124,15 +130,15 @@ export function ViewingFormModal({
       if (m.lead || m.property) return;
       try {
         await create.mutateAsync(acknowledge);
-        toast.success("Viewing scheduled");
+        toast.success(tr("workflows.viewingScheduled"));
         onClose();
       } catch (e) {
         if (e instanceof ApiError && e.status === 409) {
           const data = e.data as { conflicts?: ViewingConflict[] };
           setConflicts(data.conflicts ?? []);
-          setFormError("This time conflicts with another viewing. Review below or schedule anyway.");
+          setFormError(tr("workflows.timeConflictsAnotherViewingReview"));
         } else {
-          setFormError(e instanceof ApiError ? e.message : "Could not schedule the viewing.");
+          setFormError(errorText(e, tr("workflows.couldNotScheduleViewing")));
         }
       }
     })();
@@ -141,18 +147,16 @@ export function ViewingFormModal({
     <Modal
       open={open}
       onClose={onClose}
-      title="Schedule viewing"
+      title={tr("common.scheduleViewing")}
       footer={
         <>
-          <Button onClick={onClose}>Cancel</Button>
+          <Button onClick={onClose}>{tr("common.cancel")}</Button>
           {conflicts.length > 0 ? (
             <Button variant="primary" loading={create.isPending} onClick={() => void submit(true)}>
-              Schedule anyway
-            </Button>
+              {tr("workflows.scheduleAnyway")}</Button>
           ) : (
             <Button variant="primary" loading={create.isPending} onClick={() => void submit(false)}>
-              Schedule viewing
-            </Button>
+              {tr("common.scheduleViewing")}</Button>
           )}
         </>
       }
@@ -161,7 +165,7 @@ export function ViewingFormModal({
         <div className="sm:col-span-2">
           <FormError message={formError} />
         </div>
-        <Field label="Client" required className="sm:col-span-2" error={missing.lead ? "Select a client" : undefined}>
+        <Field label={tr("common.client")} required className="sm:col-span-2" error={missing.lead ? "Select a client" : undefined}>
           <LeadPicker
             label={lead?.label ?? null}
             disabled={Boolean(presetLead)}
@@ -169,7 +173,7 @@ export function ViewingFormModal({
             onChange={(l) => setLead(l ? { id: l.id, label: l.name } : null)}
           />
         </Field>
-        <Field label="Property" required className="sm:col-span-2" error={missing.property ? "Select a property" : undefined}>
+        <Field label={tr("common.property")} required className="sm:col-span-2" error={missing.property ? "Select a property" : undefined}>
           <PropertyPicker
             label={property?.label ?? null}
             disabled={Boolean(presetProperty)}
@@ -177,10 +181,10 @@ export function ViewingFormModal({
             onChange={(p) => setProperty(p ? { id: p.id, label: p.title } : null)}
           />
         </Field>
-        <Field label="Start" required>
+        <Field label={tr("workflows.start")} required>
           <Input type="datetime-local" {...register("start_at", { required: true })} />
         </Field>
-        <Field label="Duration">
+        <Field label={tr("workflows.duration")}>
           <Select {...register("duration", { valueAsNumber: true })}>
             {[30, 45, 60, 90, 120].map((m) => (
               <option key={m} value={m}>
@@ -190,7 +194,7 @@ export function ViewingFormModal({
           </Select>
         </Field>
         {isManager && (
-          <Field label="Salesperson" className="sm:col-span-2">
+          <Field label={tr("common.salesperson")} className="sm:col-span-2">
             <Controller
               control={control}
               name="assigned_to_id"
@@ -201,14 +205,13 @@ export function ViewingFormModal({
         {conflicts.length > 0 && (
           <div className="rounded-md border border-warn-fg/25 bg-warn-bg p-3 text-xs text-warn-fg sm:col-span-2">
             <p className="mb-1 flex items-center gap-1.5 font-semibold">
-              <AlertTriangle className="h-4 w-4" /> Scheduling conflict
-            </p>
+              <AlertTriangle className="h-4 w-4" /> {" "}{tr("workflows.schedulingConflict")}</p>
             <ul className="space-y-0.5">
               {conflicts.map((c) => (
                 <li key={c.id}>
                   {formatDateTime(c.start_at)} — {c.lead} @ {c.property}
                   {c.assigned_to ? ` (${c.assigned_to})` : ""} ·{" "}
-                  {c.reasons.map((r) => (r === "salesperson" ? "salesperson busy" : "property booked")).join(", ")}
+                  {c.reasons.map((r) => (r === "salesperson" ? tr("workflows.salespersonBusy") : tr("workflows.propertyBooked"))).join(", ")}
                 </li>
               ))}
             </ul>
@@ -227,6 +230,8 @@ export function CompleteViewingModal({
   viewing: Viewing | null;
   onClose: () => void;
 }) {
+  const tr = useTranslations();
+  const { errorText } = useApiErrors();
   const toast = useToast();
   const [feedback, setFeedback] = useState("");
   const [rating, setRating] = useState<number | null>(null);
@@ -246,32 +251,31 @@ export function CompleteViewingModal({
     <Modal
       open={Boolean(viewing)}
       onClose={onClose}
-      title="Complete viewing"
+      title={tr("workflows.completeViewing")}
       description={viewing ? `${viewing.lead.name} · ${viewing.property.title}` : undefined}
       footer={
         <>
-          <Button onClick={onClose}>Cancel</Button>
+          <Button onClick={onClose}>{tr("common.cancel")}</Button>
           <Button
             variant="primary"
             loading={complete.isPending}
             onClick={async () => {
               try {
                 await complete.mutateAsync();
-                toast.success("Viewing completed — follow-up task created");
+                toast.success(tr("workflows.viewingCompletedFollowUpTask"));
                 onClose();
               } catch (e) {
-                setError(e instanceof ApiError ? e.message : "Failed to complete viewing");
+                setError(errorText(e, tr("workflows.failedCompleteViewing")));
               }
             }}
           >
-            Mark completed
-          </Button>
+            {tr("workflows.markCompleted")}</Button>
         </>
       }
     >
       <div className="space-y-3">
         <FormError message={error} />
-        <Field label="Client interest">
+        <Field label={tr("workflows.clientInterest")}>
           <div className="flex gap-1.5">
             {[1, 2, 3, 4, 5].map((n) => (
               <button
@@ -288,15 +292,15 @@ export function CompleteViewingModal({
             ))}
           </div>
         </Field>
-        <Field label="Client feedback">
+        <Field label={tr("workflows.clientFeedback")}>
           <Textarea
             rows={4}
             value={feedback}
             onChange={(e) => setFeedback(e.target.value)}
-            placeholder="What did the client think? Objections, next steps…"
+            placeholder={tr("workflows.whatDidClientThinkObjections")}
           />
         </Field>
-        <p className="text-xs text-muted">A follow-up task is created automatically for tomorrow.</p>
+        <p className="text-xs text-muted">{tr("workflows.followUpTaskCreatedAutomatically")}</p>
       </div>
     </Modal>
   );
@@ -321,6 +325,8 @@ export function OfferFormModal({
   lead?: LeadMini | null;
   property?: PropertyMini | null;
 }) {
+  const tr = useTranslations();
+  const { errorText } = useApiErrors();
   const toast = useToast();
   const { currency_code } = useCompany();
   const [lead, setLead] = useState<Ref | null>(null);
@@ -369,10 +375,10 @@ export function OfferFormModal({
     if (m.lead || m.property) return;
     try {
       await create.mutateAsync(v);
-      toast.success("Offer recorded — deal moved to Offer Made");
+      toast.success(tr("workflows.offerRecordedDealMovedOffer"));
       onClose();
     } catch (e) {
-      setFormError(e instanceof ApiError ? e.message : "Could not record the offer.");
+      setFormError(errorText(e, tr("workflows.couldNotRecordOffer")));
     }
   });
 
@@ -380,14 +386,13 @@ export function OfferFormModal({
     <Modal
       open={open}
       onClose={onClose}
-      title="Create offer"
-      description="Opens (or updates) the deal and moves it to Offer Made."
+      title={tr("common.createOffer")}
+      description={tr("workflows.opensOrUpdatesDealMoves")}
       footer={
         <>
-          <Button onClick={onClose}>Cancel</Button>
+          <Button onClick={onClose}>{tr("common.cancel")}</Button>
           <Button variant="primary" loading={create.isPending} onClick={onSubmit}>
-            Record offer
-          </Button>
+            {tr("workflows.recordOffer")}</Button>
         </>
       }
     >
@@ -395,7 +400,7 @@ export function OfferFormModal({
         <div className="sm:col-span-2">
           <FormError message={formError} />
         </div>
-        <Field label="Client" required className="sm:col-span-2" error={missing.lead ? "Select a client" : undefined}>
+        <Field label={tr("common.client")} required className="sm:col-span-2" error={missing.lead ? "Select a client" : undefined}>
           <LeadPicker
             label={lead?.label ?? null}
             disabled={Boolean(presetLead)}
@@ -403,7 +408,7 @@ export function OfferFormModal({
             onChange={(l) => setLead(l ? { id: l.id, label: l.name } : null)}
           />
         </Field>
-        <Field label="Property" required className="sm:col-span-2" error={missing.property ? "Select a property" : undefined}>
+        <Field label={tr("common.property")} required className="sm:col-span-2" error={missing.property ? "Select a property" : undefined}>
           <PropertyPicker
             label={property?.label ?? null}
             disabled={Boolean(presetProperty)}
@@ -411,21 +416,21 @@ export function OfferFormModal({
             onChange={(p) => setProperty(p ? { id: p.id, label: p.title } : null)}
           />
         </Field>
-        <Field label={`Offer amount (${currency_code})`} required error={errors.amount?.message}>
+        <Field label={tr("workflows.offerAmountCurrencyCode", { currency_code })} required error={errors.amount?.message}>
           <Input
             type="number"
             min={1}
             step={1000}
-            {...register("amount", { required: "Amount is required", min: { value: 1, message: "Must be above zero" } })}
+            {...register("amount", { required: tr("workflows.amountRequired"), min: { value: 1, message: tr("common.mustAboveZero") } })}
           />
         </Field>
-        <Field label="Expected close date">
+        <Field label={tr("common.expectedCloseDate")}>
           <Input type="date" {...register("expected_close_date")} />
         </Field>
-        <Field label="Conditions" className="sm:col-span-2">
-          <Input placeholder="e.g. Subject to financing" {...register("conditions")} />
+        <Field label={tr("workflows.conditions")} className="sm:col-span-2">
+          <Input placeholder={tr("workflows.eGSubjectFinancing")} {...register("conditions")} />
         </Field>
-        <Field label="Notes" className="sm:col-span-2">
+        <Field label={tr("common.notes")} className="sm:col-span-2">
           <Textarea rows={2} {...register("notes")} />
         </Field>
       </form>
@@ -443,6 +448,8 @@ export function LinkPropertyModal({
   onClose: () => void;
   lead: LeadMini;
 }) {
+  const tr = useTranslations();
+  const { errorText } = useApiErrors();
   const toast = useToast();
   const [property, setProperty] = useState<Ref | null>(null);
   const [status, setStatus] = useState("suggested");
@@ -469,11 +476,11 @@ export function LinkPropertyModal({
     <Modal
       open={open}
       onClose={onClose}
-      title="Add property to client"
-      description={`Match a property with ${lead.name}`}
+      title={tr("workflows.addPropertyClient")}
+      description={tr("workflows.matchPropertyName", { name: lead.name })}
       footer={
         <>
-          <Button onClick={onClose}>Cancel</Button>
+          <Button onClick={onClose}>{tr("common.cancel")}</Button>
           <Button
             variant="primary"
             disabled={!property}
@@ -481,34 +488,33 @@ export function LinkPropertyModal({
             onClick={async () => {
               try {
                 await link.mutateAsync();
-                toast.success("Property added");
+                toast.success(tr("common.propertyAdded"));
                 onClose();
               } catch (e) {
-                setError(e instanceof ApiError ? e.message : "Could not link the property.");
+                setError(errorText(e, tr("workflows.couldNotLinkProperty")));
               }
             }}
           >
-            Add property
-          </Button>
+            {tr("common.addProperty")}</Button>
         </>
       }
     >
       <div className="space-y-3">
         <FormError message={error} />
-        <Field label="Property" required>
+        <Field label={tr("common.property")} required>
           <PropertyPicker
             label={property?.label ?? null}
             onChange={(p) => setProperty(p ? { id: p.id, label: p.title } : null)}
           />
         </Field>
-        <Field label="Initial status">
+        <Field label={tr("workflows.initialStatus")}>
           <Select value={status} onChange={(e) => setStatus(e.target.value)}>
-            <option value="suggested">Suggested</option>
-            <option value="interested">Interested</option>
+            <option value="suggested">{tr("workflows.suggested")}</option>
+            <option value="interested">{tr("workflows.interested")}</option>
           </Select>
         </Field>
-        <Field label="Note">
-          <Input value={note} onChange={(e) => setNote(e.target.value)} placeholder="Optional" />
+        <Field label={tr("workflows.note")}>
+          <Input value={note} onChange={(e) => setNote(e.target.value)} placeholder={tr("workflows.optional")} />
         </Field>
       </div>
     </Modal>
@@ -525,6 +531,8 @@ export function StageChangeModal({
   stage: DealStage | null;
   onClose: () => void;
 }) {
+  const tr = useTranslations();
+  const { errorText } = useApiErrors();
   const { money } = useMoney();
   const { currency_code } = useCompany();
   const toast = useToast();
@@ -556,11 +564,11 @@ export function StageChangeModal({
       open={open}
       onClose={onClose}
       size="sm"
-      title={isLost ? "Mark deal as lost" : "Close deal"}
+      title={isLost ? tr("workflows.markDealAsLost") : tr("workflows.closeDeal")}
       description={deal ? `${deal.lead.name} · ${deal.property.title}` : undefined}
       footer={
         <>
-          <Button onClick={onClose}>Cancel</Button>
+          <Button onClick={onClose}>{tr("common.cancel")}</Button>
           <Button
             variant={isLost ? "danger" : "primary"}
             loading={move.isPending}
@@ -568,14 +576,14 @@ export function StageChangeModal({
             onClick={async () => {
               try {
                 await move.mutateAsync();
-                toast.success(isLost ? "Deal marked as lost" : "Deal closed — commission generated");
+                toast.success(isLost ? tr("workflows.dealMarkedAsLost") : tr("workflows.dealClosedCommissionGenerated"));
                 onClose();
               } catch (e) {
-                setError(e instanceof ApiError ? e.message : "Could not move the deal.");
+                setError(errorText(e, tr("workflows.couldNotMoveDeal")));
               }
             }}
           >
-            {isLost ? "Mark lost" : "Close deal"}
+            {isLost ? tr("workflows.markLost") : tr("workflows.closeDeal")}
           </Button>
         </>
       }
@@ -583,17 +591,16 @@ export function StageChangeModal({
       <div className="space-y-3">
         <FormError message={error} />
         {isLost ? (
-          <Field label="Reason" required>
+          <Field label={tr("workflows.reason")} required>
             <Textarea rows={3} value={reason} onChange={(e) => setReason(e.target.value)} autoFocus />
           </Field>
         ) : (
           <>
-            <Field label={`Final sale price (${currency_code})`} required hint={deal?.offer_amount ? `Accepted offer: ${money(deal.offer_amount)}` : undefined}>
+            <Field label={tr("workflows.finalSalePriceCurrencyCode", { currency_code })} required hint={deal?.offer_amount ? tr("workflows.acceptedOfferValue", { value: money(deal.offer_amount) }) : undefined}>
               <Input type="number" min={1} value={price} onChange={(e) => setPrice(e.target.value)} />
             </Field>
             <p className="text-xs text-muted">
-              Closing marks the property as sold, the client as closed and generates the commission.
-            </p>
+              {tr("workflows.closingMarksPropertyAsSold")}</p>
           </>
         )}
       </div>
@@ -610,9 +617,11 @@ export function StageSelect({
   onChange: (stage: DealStage) => void;
   disabled?: boolean;
 }) {
+  const enums = useEnums();
+  const tr = useTranslations();
   return (
-    <Select value={value} onChange={(e) => onChange(e.target.value as DealStage)} disabled={disabled} aria-label="Deal stage">
-      {optionsOf(DEAL_STAGE).map((o) => (
+    <Select value={value} onChange={(e) => onChange(e.target.value as DealStage)} disabled={disabled} aria-label={tr("workflows.dealStage")}>
+      {enums.options("dealStage").map((o) => (
         <option key={o.value} value={o.value}>
           {o.label}
         </option>

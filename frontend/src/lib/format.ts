@@ -8,17 +8,31 @@ import {
   parseISO,
 } from "date-fns";
 
-// The base currency and number locale come from the company settings (see lib/company.tsx). One base currency, no
-// conversion: stored amounts are shown in that currency as they are. Latin digits are forced so the English UI stays
-// consistent whatever the locale; defaults reproduce the previous USD / en-US output exactly.
-// There is NO module-level state here: the formatters are built from an explicit config, so one request or render can
-// never see another's settings. Components get them through useMoney() (lib/company.tsx).
-export interface MoneyConfig {
-  locale: string;
+import { formattingLocale } from "./format-locale";
+
+// ONE place for every number, amount, date, time and relative time the interface shows (Phase 5, ADR-0001 2.4). Presentation only: the values, the stored
+// precision and every API payload are untouched (toLocalInput/fromLocalInput keep their formats).
+//  * The formatting locale follows the user's INTERFACE language; its region comes from the company locale; Latin digits and the Gregorian calendar always.
+//  * The currency stays the company's one base currency; there is no conversion.
+//  * English keeps its exact previous date and time output (date-fns patterns, "Today, 2:30 PM", "5 days ago"); every other language goes through Intl.
+// There is NO module-level state: the formatters are built from an explicit config, so one render can never see another's settings. Components get them
+// through useFormat() (lib/company.tsx).
+export interface FormatConfig {
+  /** The interface language (`useLocale()`). */
+  language: string;
+  /** The company locale (its region is used). */
+  companyLocale: string;
   currency_code: string;
+  /** Show the currency as its symbol (default) or its ISO code. */
+  currencyDisplay?: "symbol" | "code";
 }
 
+/** The catalogue messages the date formatters need. */
+export type FormatMessageKey = "ui.whenToday" | "ui.whenTomorrow" | "ui.whenYesterday" | "ui.dateTime" | "ui.relativeAgo" | "ui.relativeFromNow";
+export type Translate = (key: FormatMessageKey, values: Record<string, string | number>) => string;
+
 type Num = string | number | null | undefined;
+type Iso = string | null | undefined;
 
 const num = (v: Num): number | null => {
   if (v === null || v === undefined || v === "") return null;
@@ -26,32 +40,26 @@ const num = (v: Num): number | null => {
   return Number.isFinite(n) ? n : null;
 };
 
-export interface MoneyFormatters {
+export interface Formatters {
   money: (v: Num) => string;
   money2: (v: Num) => string;
   moneyCompact: (v: Num) => string;
+  /** A plain number with the locale's grouping (Latin digits). */
+  number: (v: Num) => string;
+  formatDate: (iso: Iso) => string;
+  formatTime: (iso: Iso) => string;
+  formatDateTime: (iso: Iso) => string;
+  /** "Today, 2:30 PM" / "Tomorrow, ..." / "Yesterday, ..." / "Mar 4, 10:00 AM" */
+  formatWhen: (iso: Iso) => string;
+  relative: (iso: Iso) => string;
+  /** "Mar 4" and "Mar 4, 2026" for a Date the page already holds (the week header). */
+  dayMonth: (d: Date) => string;
+  dayMonthYear: (d: Date) => string;
+  /** The short weekday name ("Mon"). */
+  weekday: (d: Date) => string;
 }
 
-export function makeMoneyFormatters(cfg: MoneyConfig): MoneyFormatters {
-  const base = { style: "currency" as const, currency: cfg.currency_code, numberingSystem: "latn" };
-  const make = (extra: Intl.NumberFormatOptions) => {
-    try {
-      return new Intl.NumberFormat(cfg.locale, { ...base, ...extra });
-    } catch {
-      return new Intl.NumberFormat("en-US", { ...base, currency: "USD", ...extra }); // unknown locale/currency: never crash
-    }
-  };
-  const whole = make({ maximumFractionDigits: 0 });
-  const cents = make({ minimumFractionDigits: 2 });
-  const compact = make({ notation: "compact", maximumFractionDigits: 1 });
-  const wrap = (nf: Intl.NumberFormat) => (v: Num) => {
-    const n = num(v);
-    return n === null ? "—" : nf.format(n);
-  };
-  return { money: wrap(whole), money2: wrap(cents), moneyCompact: wrap(compact) };
-}
-
-export function parse(iso: string | null | undefined): Date | null {
+export function parse(iso: Iso): Date | null {
   if (!iso) return null;
   try {
     return parseISO(iso);
@@ -60,37 +68,105 @@ export function parse(iso: string | null | undefined): Date | null {
   }
 }
 
-export function formatDate(iso: string | null | undefined): string {
-  const d = parse(iso);
-  if (!d) return "—";
-  return format(d, isThisYear(d) ? "MMM d" : "MMM d, yyyy");
-}
+const RELATIVE_UNITS = ["second", "minute", "hour", "day", "month", "year"];
 
-export function formatTime(iso: string | null | undefined): string {
-  const d = parse(iso);
-  return d ? format(d, "h:mm a") : "—";
-}
+export function makeFormatters(cfg: FormatConfig, t: Translate): Formatters {
+  const locale = formattingLocale(cfg.language, cfg.companyLocale);
+  const tag = locale.toString();
+  const english = locale.language === "en";
 
-export function formatDateTime(iso: string | null | undefined): string {
-  const d = parse(iso);
-  if (!d) return "—";
-  return `${formatDate(iso)}, ${formatTime(iso)}`;
-}
+  const currencyBase = { style: "currency" as const, currency: cfg.currency_code, currencyDisplay: cfg.currencyDisplay === "code" ? ("code" as const) : ("symbol" as const) };
+  const money$ = (extra: Intl.NumberFormatOptions) => {
+    try {
+      return new Intl.NumberFormat(tag, { ...currencyBase, ...extra });
+    } catch {
+      return new Intl.NumberFormat("en-US", { ...currencyBase, currency: "USD", ...extra }); // unknown locale or currency: never crash
+    }
+  };
+  const wrap = (nf: Intl.NumberFormat) => (v: Num) => {
+    const n = num(v);
+    return n === null ? "—" : nf.format(n);
+  };
+  const plain = (() => {
+    try {
+      return new Intl.NumberFormat(tag);
+    } catch {
+      return new Intl.NumberFormat("en-US");
+    }
+  })();
 
-/** "Today, 2:30 PM" / "Tomorrow, 9:00 AM" / "Mar 4, 10:00 AM" */
-export function formatWhen(iso: string | null | undefined): string {
-  const d = parse(iso);
-  if (!d) return "—";
-  if (isToday(d)) return `Today, ${formatTime(iso)}`;
-  if (isTomorrow(d)) return `Tomorrow, ${formatTime(iso)}`;
-  if (isYesterday(d)) return `Yesterday, ${formatTime(iso)}`;
-  return formatDateTime(iso);
-}
+  const dateFormat = (options: Intl.DateTimeFormatOptions) => {
+    try {
+      return new Intl.DateTimeFormat(tag, options);
+    } catch {
+      return new Intl.DateTimeFormat("en-US", options);
+    }
+  };
+  const dayMonthF = dateFormat({ month: "short", day: "numeric" });
+  const dayMonthYearF = dateFormat({ month: "short", day: "numeric", year: "numeric" });
+  const timeF = dateFormat({ hour: "numeric", minute: "2-digit", hour12: true });
+  const weekdayF = dateFormat({ weekday: "short" });
 
-export function relative(iso: string | null | undefined): string {
-  const d = parse(iso);
-  if (!d) return "—";
-  return `${formatDistanceToNowStrict(d)} ${d.getTime() > Date.now() ? "from now" : "ago"}`;
+  const dayMonth = (d: Date) => (english ? format(d, "MMM d") : dayMonthF.format(d));
+  const dayMonthYear = (d: Date) => (english ? format(d, "MMM d, yyyy") : dayMonthYearF.format(d));
+  const weekday = (d: Date) => (english ? format(d, "EEE") : weekdayF.format(d));
+  const clock = (d: Date) => (english ? format(d, "h:mm a") : timeF.format(d));
+
+  const formatDate = (iso: Iso) => {
+    const d = parse(iso);
+    if (!d) return "—";
+    return isThisYear(d) ? dayMonth(d) : dayMonthYear(d);
+  };
+  const formatTime = (iso: Iso) => {
+    const d = parse(iso);
+    return d ? clock(d) : "—";
+  };
+  const formatDateTime = (iso: Iso) => {
+    const d = parse(iso);
+    if (!d) return "—";
+    return t("ui.dateTime", { date: formatDate(iso), time: clock(d) });
+  };
+  const formatWhen = (iso: Iso) => {
+    const d = parse(iso);
+    if (!d) return "—";
+    if (isToday(d)) return t("ui.whenToday", { time: clock(d) });
+    if (isTomorrow(d)) return t("ui.whenTomorrow", { time: clock(d) });
+    if (isYesterday(d)) return t("ui.whenYesterday", { time: clock(d) });
+    return formatDateTime(iso);
+  };
+  const relative = (iso: Iso) => {
+    const d = parse(iso);
+    if (!d) return "—";
+    const future = d.getTime() > Date.now();
+    const distance = formatDistanceToNowStrict(d); // "5 days": the count and the unit are the same in every language
+    if (!english) {
+      // Intl.RelativeTimeFormat gives the right grammar for the language ("قبل يومين", "بعد 3 ساعات"); the catalogue wording is the fallback
+      const match = /^(\d+) (\w+?)s?$/.exec(distance);
+      if (match && RELATIVE_UNITS.includes(match[2])) {
+        try {
+          return new Intl.RelativeTimeFormat(tag, { numeric: "always" }).format((future ? 1 : -1) * Number(match[1]), match[2] as Intl.RelativeTimeFormatUnit);
+        } catch {
+          // fall through to the catalogue wording
+        }
+      }
+    }
+    return t(future ? "ui.relativeFromNow" : "ui.relativeAgo", { distance });
+  };
+
+  return {
+    money: wrap(money$({ maximumFractionDigits: 0 })),
+    money2: wrap(money$({ minimumFractionDigits: 2 })),
+    moneyCompact: wrap(money$({ notation: "compact", maximumFractionDigits: 1 })),
+    number: wrap(plain),
+    formatDate,
+    formatTime,
+    formatDateTime,
+    formatWhen,
+    relative,
+    dayMonth,
+    dayMonthYear,
+    weekday,
+  };
 }
 
 export function toLocalInput(d: Date): string {

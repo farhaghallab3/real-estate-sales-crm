@@ -5,6 +5,7 @@ import { X } from "lucide-react";
 import { useEffect, useRef } from "react";
 
 import { Button } from "./button";
+import { useTranslations } from "next-intl";
 
 export function Modal({
   open,
@@ -23,6 +24,7 @@ export function Modal({
   footer?: React.ReactNode;
   size?: "sm" | "md" | "lg";
 }) {
+  const t = useTranslations();
   const panel = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -57,7 +59,7 @@ export function Modal({
             <h2 className="text-base font-semibold">{title}</h2>
             {description && <p className="mt-0.5 text-xs text-muted">{description}</p>}
           </div>
-          <Button variant="ghost" size="sm" onClick={onClose} aria-label="Close" className="-mr-2 h-8 w-8 px-0">
+          <Button variant="ghost" size="sm" onClick={onClose} aria-label={t("ui.close")} className="-me-2 h-8 w-8 px-0">
             <X className="h-4 w-4" />
           </Button>
         </header>

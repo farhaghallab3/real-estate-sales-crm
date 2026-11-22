@@ -17,10 +17,12 @@ import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Card, EmptyState, ErrorState, PageHeader, Pagination, Pills, TableSkeleton } from "@/components/ui/primitives";
 import { api } from "@/lib/api";
-import { relative } from "@/lib/format";
 import { useApiMutation, useNotifications } from "@/lib/queries";
 import { useUrlState } from "@/lib/use-url-state";
+import { useFormat } from "@/lib/company";
 import type { AppNotification } from "@/types";
+import { useTranslations } from "next-intl";
+import { useApiErrors } from "@/lib/use-api-errors";
 
 const PAGE_SIZE = 25;
 
@@ -36,6 +38,9 @@ const ICONS: Record<string, React.ComponentType<{ className?: string }>> = {
 };
 
 export default function NotificationsPage() {
+  const t = useTranslations();
+  const { errorText } = useApiErrors();
+  const { relative } = useFormat();
   const router = useRouter();
   const [f, setF] = useUrlState({ filter: "all", page: "1" });
   const list = useNotifications({
@@ -54,12 +59,11 @@ export default function NotificationsPage() {
   return (
     <div>
       <PageHeader
-        title="Notifications"
-        description="Assignments, reminders and deal changes."
+        title={t("notifications.notifications")}
+        description={t("notifications.assignmentsRemindersDealChanges")}
         actions={
           <Button onClick={() => void markAll.mutateAsync(undefined)} loading={markAll.isPending}>
-            Mark all as read
-          </Button>
+            {t("notifications.markAllAsRead")}</Button>
         }
       />
       <Card padded={false}>
@@ -68,17 +72,17 @@ export default function NotificationsPage() {
             value={f.filter}
             onChange={(v) => setF({ filter: v })}
             options={[
-              { value: "all", label: "All" },
-              { value: "unread", label: "Unread" },
+              { value: "all", label: t("common.all") },
+              { value: "unread", label: t("notifications.unread") },
             ]}
           />
         </div>
         {list.isLoading ? (
           <TableSkeleton cols={2} rows={6} />
         ) : list.error ? (
-          <ErrorState message={(list.error as Error).message} onRetry={() => void list.refetch()} />
+          <ErrorState message={errorText(list.error)} onRetry={() => void list.refetch()} />
         ) : list.data!.results.length === 0 ? (
-          <EmptyState title="You're all caught up" icon={<Bell className="h-7 w-7" />} />
+          <EmptyState title={t("notifications.reAllCaughtUp")} icon={<Bell className="h-7 w-7" />} />
         ) : (
           <ul className="divide-y divide-line">
             {list.data!.results.map((n) => {
@@ -88,7 +92,7 @@ export default function NotificationsPage() {
                   <button
                     onClick={() => void open(n)}
                     className={clsx(
-                      "flex w-full items-start gap-3 px-4 py-3 text-left transition-colors hover:bg-canvas",
+                      "flex w-full items-start gap-3 px-4 py-3 text-start transition-colors hover:bg-canvas",
                       !n.is_read && "bg-brand-50/50",
                     )}
                   >
@@ -106,7 +110,7 @@ export default function NotificationsPage() {
                     </span>
                     <span className="flex shrink-0 items-center gap-2 text-xs text-muted">
                       {relative(n.created_at)}
-                      {!n.is_read && <span className="h-2 w-2 rounded-full bg-accent" aria-label="Unread" />}
+                      {!n.is_read && <span className="h-2 w-2 rounded-full bg-accent" aria-label={t("notifications.unread")} />}
                     </span>
                   </button>
                 </li>

@@ -20,15 +20,21 @@ import {
 } from "@/components/ui/primitives";
 import { api } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
-import { optionsOf, TASK_TYPE } from "@/lib/constants";
+
 import { useTasks } from "@/lib/queries";
 import { useUrlState } from "@/lib/use-url-state";
 import { useQuery } from "@tanstack/react-query";
 import type { Task, TaskScope } from "@/types";
+import { useTranslations } from "next-intl";
+import { useEnums } from "@/lib/enums";
+import { useApiErrors } from "@/lib/use-api-errors";
 
 const PAGE_SIZE = 25;
 
 export default function TasksPage() {
+  const enums = useEnums();
+  const tr = useTranslations();
+  const { errorText } = useApiErrors();
   const { isManager } = useAuth();
   const [f, setF] = useUrlState({ scope: "all", q: "", type: "", assigned: "", team: "", page: "1" });
   const [createOpen, setCreateOpen] = useState(false);
@@ -56,22 +62,21 @@ export default function TasksPage() {
   });
 
   const tabs: { value: TaskScope; label: string }[] = [
-    { value: "all", label: "My tasks" },
-    { value: "today", label: "Due today" },
-    { value: "upcoming", label: "Upcoming" },
-    { value: "overdue", label: "Overdue" },
-    { value: "completed", label: "Completed" },
+    { value: "all", label: tr("tasks.myTasks") },
+    { value: "today", label: tr("tasks.dueToday") },
+    { value: "upcoming", label: tr("common.upcoming") },
+    { value: "overdue", label: tr("tasks.overdue") },
+    { value: "completed", label: tr("common.completed") },
   ];
 
   return (
     <div>
       <PageHeader
-        title="Tasks & follow-ups"
-        description="Calls, emails, viewings, follow-ups and documents."
+        title={tr("tasks.tasksFollowUps")}
+        description={tr("tasks.callsEmailsViewingsFollowUps")}
         actions={
           <Button variant="primary" icon={<Plus className="h-4 w-4" />} onClick={() => setCreateOpen(true)}>
-            New task
-          </Button>
+            {tr("common.newTask")}</Button>
         }
       />
       <Card padded={false}>
@@ -85,10 +90,10 @@ export default function TasksPage() {
           }))}
         />
         <div className="grid grid-cols-1 gap-2 border-b border-line p-3 sm:grid-cols-2 lg:grid-cols-4">
-          <SearchInput value={f.q} onChange={(v) => setF({ q: v })} placeholder="Search tasks, clients, properties…" />
-          <Select value={f.type} onChange={(e) => setF({ type: e.target.value })} aria-label="Task type">
-            <option value="">All types</option>
-            {optionsOf(TASK_TYPE).map((o) => (
+          <SearchInput value={f.q} onChange={(v) => setF({ q: v })} placeholder={tr("tasks.searchTasksClientsProperties")} />
+          <Select value={f.type} onChange={(e) => setF({ type: e.target.value })} aria-label={tr("tasks.taskType")}>
+            <option value="">{tr("common.allTypes")}</option>
+            {enums.options("taskType").map((o) => (
               <option key={o.value} value={o.value}>
                 {o.label}
               </option>
@@ -99,16 +104,16 @@ export default function TasksPage() {
               <Select
                 value={teamView ? "team" : "mine"}
                 onChange={(e) => setF({ team: e.target.value === "team" ? "1" : "", assigned: "" })}
-                aria-label="Scope"
+                aria-label={tr("tasks.scope")}
               >
-                <option value="mine">Assigned to me</option>
-                <option value="team">Whole team</option>
+                <option value="mine">{tr("tasks.assignedMe")}</option>
+                <option value="team">{tr("tasks.wholeTeam")}</option>
               </Select>
               {teamView && (
                 <UserSelect
                   value={f.assigned ? Number(f.assigned) : null}
                   onChange={(id) => setF({ assigned: id ? String(id) : "", team: "1" })}
-                  emptyLabel="Any salesperson"
+                  emptyLabel={tr("tasks.anySalesperson")}
                 />
               )}
             </>
@@ -118,12 +123,12 @@ export default function TasksPage() {
         {list.isLoading ? (
           <TableSkeleton cols={3} rows={6} />
         ) : list.error ? (
-          <ErrorState message={(list.error as Error).message} onRetry={() => void list.refetch()} />
+          <ErrorState message={errorText(list.error)} onRetry={() => void list.refetch()} />
         ) : list.data!.results.length === 0 ? (
           <EmptyState
-            title={scope === "overdue" ? "Nothing overdue 🎉" : "No tasks here"}
-            description={scope === "completed" ? "Completed tasks appear here." : "Create a follow-up from a client profile or here."}
-            action={<Button variant="primary" onClick={() => setCreateOpen(true)}>New task</Button>}
+            title={scope === "overdue" ? tr("tasks.nothingOverdue") : tr("tasks.noTasksHere")}
+            description={scope === "completed" ? tr("tasks.completedTasksAppearHere") : tr("tasks.createFollowUpFromClient")}
+            action={<Button variant="primary" onClick={() => setCreateOpen(true)}>{tr("common.newTask")}</Button>}
           />
         ) : (
           <ul className="divide-y divide-line">

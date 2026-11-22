@@ -18,14 +18,19 @@ import {
   TableSkeleton,
 } from "@/components/ui/primitives";
 import { useAuth } from "@/lib/auth";
-import { DOCUMENT_CATEGORY, optionsOf } from "@/lib/constants";
+
 import { useDeals, useDocuments } from "@/lib/queries";
 import { useUrlState } from "@/lib/use-url-state";
 import type { DocumentCategory } from "@/types";
+import { useTranslations } from "next-intl";
+import { useEnums } from "@/lib/enums";
+import { useApiErrors } from "@/lib/use-api-errors";
 
 const PAGE_SIZE = 25;
 
 function UploadModal({ open, onClose }: { open: boolean; onClose: () => void }) {
+  const enums = useEnums();
+  const t = useTranslations();
   const deals = useDeals({ page_size: 200, ordering: "-updated_at" }, open);
   const uploader = useUploadDocument();
   const [dealId, setDealId] = useState("");
@@ -36,10 +41,10 @@ function UploadModal({ open, onClose }: { open: boolean; onClose: () => void }) 
     <Modal
       open={open}
       onClose={onClose}
-      title="Upload document"
+      title={t("documents.uploadDocument")}
       footer={
         <>
-          <Button onClick={onClose}>Cancel</Button>
+          <Button onClick={onClose}>{t("common.cancel")}</Button>
           <Button
             variant="primary"
             loading={uploader.pending}
@@ -50,15 +55,14 @@ function UploadModal({ open, onClose }: { open: boolean; onClose: () => void }) 
               if (await uploader.run(Number(dealId), category, selected)) onClose();
             }}
           >
-            Choose file & upload
-          </Button>
+            {t("documents.chooseFileUpload")}</Button>
         </>
       }
     >
       <div className="space-y-3">
-        <Field label="Deal" required>
+        <Field label={t("documents.deal")} required>
           <Select value={dealId} onChange={(e) => setDealId(e.target.value)}>
-            <option value="">Select a deal…</option>
+            <option value="">{t("documents.selectDeal")}</option>
             {deals.data?.results.map((d) => (
               <option key={d.id} value={d.id}>
                 {d.lead.name} — {d.property.title}
@@ -66,16 +70,16 @@ function UploadModal({ open, onClose }: { open: boolean; onClose: () => void }) 
             ))}
           </Select>
         </Field>
-        <Field label="Category">
+        <Field label={t("documents.category")}>
           <Select value={category} onChange={(e) => setCategory(e.target.value as DocumentCategory)}>
-            {optionsOf(DOCUMENT_CATEGORY).map((o) => (
+            {enums.options("documentCategory").map((o) => (
               <option key={o.value} value={o.value}>
                 {o.label}
               </option>
             ))}
           </Select>
         </Field>
-        <Field label="File" hint="PDF, Word, Excel, image or text · max 10 MB">
+        <Field label={t("documents.file")} hint={t("documents.pdfWordExcelImageOr")}>
           <input ref={file} type="file" className="block w-full text-sm" />
         </Field>
       </div>
@@ -84,6 +88,9 @@ function UploadModal({ open, onClose }: { open: boolean; onClose: () => void }) 
 }
 
 export default function DocumentsPage() {
+  const enums = useEnums();
+  const t = useTranslations();
+  const { errorText } = useApiErrors();
   const { user, isManager } = useAuth();
   const [f, setF] = useUrlState({ q: "", category: "", page: "1" });
   const [uploadOpen, setUploadOpen] = useState(false);
@@ -92,20 +99,19 @@ export default function DocumentsPage() {
   return (
     <div>
       <PageHeader
-        title="Documents"
-        description="Transaction documents across your deals. Open a deal to see its required-document checklist."
+        title={t("common.documents")}
+        description={t("documents.transactionDocumentsAcrossDealsOpen")}
         actions={
           <Button variant="primary" icon={<Upload className="h-4 w-4" />} onClick={() => setUploadOpen(true)}>
-            Upload
-          </Button>
+            {t("documents.upload")}</Button>
         }
       />
       <Card padded={false}>
         <div className="grid grid-cols-1 gap-2 border-b border-line p-3 sm:grid-cols-2 lg:grid-cols-4">
-          <SearchInput value={f.q} onChange={(v) => setF({ q: v })} placeholder="Search file, client or property…" />
-          <Select value={f.category} onChange={(e) => setF({ category: e.target.value })} aria-label="Category">
-            <option value="">All categories</option>
-            {optionsOf(DOCUMENT_CATEGORY).map((o) => (
+          <SearchInput value={f.q} onChange={(v) => setF({ q: v })} placeholder={t("documents.searchFileClientOrProperty")} />
+          <Select value={f.category} onChange={(e) => setF({ category: e.target.value })} aria-label={t("documents.category")}>
+            <option value="">{t("documents.allCategories")}</option>
+            {enums.options("documentCategory").map((o) => (
               <option key={o.value} value={o.value}>
                 {o.label}
               </option>
@@ -115,9 +121,9 @@ export default function DocumentsPage() {
         {list.isLoading ? (
           <TableSkeleton cols={3} rows={6} />
         ) : list.error ? (
-          <ErrorState message={(list.error as Error).message} onRetry={() => void list.refetch()} />
+          <ErrorState message={errorText(list.error)} onRetry={() => void list.refetch()} />
         ) : list.data!.results.length === 0 ? (
-          <EmptyState title="No documents" description="Upload contracts, offers and IDs against a deal." />
+          <EmptyState title={t("documents.noDocuments")} description={t("documents.uploadContractsOffersIdsAgainst")} />
         ) : (
           <ul className="divide-y divide-line">
             {list.data!.results.map((d) => (
