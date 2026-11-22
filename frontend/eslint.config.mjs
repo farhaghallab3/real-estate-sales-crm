@@ -1,5 +1,7 @@
 import { FlatCompat } from "@eslint/eslintrc";
 
+import { i18nConfigs } from "./eslint.i18n.mjs";
+
 const compat = new FlatCompat({ baseDirectory: import.meta.dirname });
 
 // Next.js' recommended rules (React, hooks, accessibility basics, no <a> for internal links) plus a short list of rules that
@@ -16,4 +18,6 @@ export default [
   },
   // the stack runner is a command-line tool: printing progress is its job
   { files: ["e2e/stack.mjs"], rules: { "no-console": "off" } },
+  // localization guard (Phase 1.5): visible literals in src/**/*.tsx are warnings here; `npm run lint` then fails on any literal that is not in the baseline
+  ...i18nConfigs({ severity: "warn" }),
 ];
