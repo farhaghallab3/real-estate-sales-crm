@@ -16,24 +16,33 @@ export default async function globalSetup(config: FullConfig) {
   fs.mkdirSync(AUTH_DIR, { recursive: true });
   const api = await request.newContext({ baseURL });
   let managerToken = "";
+  let salesToken = "";
   for (const role of Object.keys(ROLES) as Role[]) {
     const res = await api.post("/api/auth/login/", { data: { email: ROLES[role], password } });
     if (!res.ok()) throw new Error(`login failed for ${role}: HTTP ${res.status()}`);
     const { access, refresh } = (await res.json()) as { access: string; refresh: string };
     if (role === "manager") managerToken = access;
+    if (role === "sales") salesToken = access;
     const state = {
       cookies: [],
       origins: [{ origin: new URL(baseURL).origin, localStorage: [{ name: "crm.access", value: access }, { name: "crm.refresh", value: refresh }] }],
     };
     fs.writeFileSync(path.join(AUTH_DIR, `${role}.json`), JSON.stringify(state));
   }
-  const first = async (resource: string) => {
-    const res = await api.get(`/api/${resource}/?page_size=1`, { headers: { Authorization: `Bearer ${managerToken}` } });
-    const body = (await res.json()) as { results?: { id: number }[] };
-    return body.results?.[0]?.id;
+  // The detail pages of the plain demo records. Two things must hold, because every role opens them (smoke.spec.ts):
+  //  * the record is visible to the SALES user, who sees only what is assigned to them: the id is taken from the sales user's own list (a record in it is
+  //    visible to the manager and the admin too). Taking the manager's newest record is wrong: the long-text lead below is unassigned;
+  //  * it is not a long-text record. A full run (the pseudo-build phase, then the product phase) shares one backend and each phase's setup creates its own long-text
+  //    records, so by the second phase the newest records are the previous phase's long-text ones.
+  const isLong = (r: { name?: string; title?: string }) => (r.name ?? r.title ?? "").includes(LONG.arabicName);
+  const first = async (resource: string, token: string) => {
+    const res = await api.get(`/api/${resource}/?page_size=50`, { headers: { Authorization: `Bearer ${token}` } });
+    const body = (await res.json()) as { results?: { id: number; name?: string; title?: string }[] };
+    const plain = body.results?.find((r) => !isLong(r));
+    if (!plain) throw new Error(`no plain ${resource} record visible to this user`);
+    return plain.id;
   };
-  // the detail pages of the plain demo records are looked up BEFORE the long-text records exist, so they stay the plain ones
-  const seeded = { lead: await first("leads"), property: await first("properties"), deal: await first("deals") };
+  const seeded = { lead: await first("leads", salesToken), property: await first("properties", managerToken), deal: await first("deals", salesToken) };
   // long Arabic / unbroken text records are created here, once and sequentially (two workers creating properties at the same moment hit a
   // backend race on the property reference, reported separately); the screens are checked against them in long-text.spec.ts
   const auth = { Authorization: `Bearer ${managerToken}` };

@@ -4,20 +4,20 @@ import { authState, expectNoHorizontalOverflow, open, watchProblems } from "./he
 
 test.describe("sign-in", () => {
   for (const vp of [{ width: 375, height: 812 }, { width: 1280, height: 800 }]) {
-    test(`the sign-in page fits a ${vp.width}px screen`, async ({ page }) => {
+    test(`the sign-in page fits a ${vp.width}px screen`, async ({ page, ui }) => {
       await page.setViewportSize(vp);
       await page.goto("/login");
-      await expect(page.getByRole("heading", { name: "Sign in" })).toBeVisible();
+      await expect(page.getByRole("heading", { name: ui.signIn })).toBeVisible();
       await expectNoHorizontalOverflow(page);
     });
   }
 
-  test("a wrong password shows a clear error and stays on the page", async ({ page }) => {
+  test("a wrong password shows a clear error and stays on the page", async ({ page, ui }) => {
     await page.goto("/login");
-    await page.getByLabel("Email").fill("manager@crm.local");
-    await page.getByLabel("Password").fill("definitely-not-the-password");
-    await page.getByRole("button", { name: "Sign in" }).click();
-    await expect(page.getByText("Incorrect email or password.")).toBeVisible();
+    await page.getByLabel(ui.email).fill("manager@crm.local");
+    await page.getByLabel(ui.password).fill("definitely-not-the-password");
+    await page.getByRole("button", { name: ui.signIn }).click();
+    await expect(page.getByText(ui.wrongPassword)).toBeVisible();
     await expect(page).toHaveURL(/\/login/);
   });
 
@@ -30,27 +30,27 @@ test.describe("sign-in", () => {
 test.describe("phone navigation", () => {
   test.use({ storageState: authState("manager"), viewport: { width: 375, height: 812 } });
 
-  test("the menu opens, reaches a screen and closes", async ({ page }) => {
+  test("the menu opens, reaches a screen and closes", async ({ page, ui }) => {
     const problems = watchProblems(page);
     await open(page, "/dashboard");
-    await page.getByRole("button", { name: "Open menu" }).click();
-    const nav = page.getByRole("navigation", { name: "Main" });
+    await page.getByRole("button", { name: ui.openMenu }).click();
+    const nav = page.getByRole("navigation", { name: ui.mainNavigation });
     await expect(nav).toBeVisible();
-    await nav.getByRole("link", { name: /Leads/ }).click();
+    await nav.getByRole("link", { name: ui.navLeads }).click();
     await expect(page).toHaveURL(/\/leads/);
-    await expect(page.getByRole("navigation", { name: "Main" })).toBeHidden();
+    await expect(page.getByRole("navigation", { name: ui.mainNavigation })).toBeHidden();
     expect(problems, problems.join("\n")).toEqual([]);
   });
 
-  test("the Add lead form fits the screen and its submit button is reachable", async ({ page }) => {
+  test("the Add lead form fits the screen and its submit button is reachable", async ({ page, ui }) => {
     await open(page, "/leads");
-    await page.getByRole("button", { name: "Add lead" }).first().click();
+    await page.getByRole("main").getByRole("button", { name: ui.addLead, exact: true }).click(); // the page's own action, scoped to the main region
     const dialog = page.getByRole("dialog");
     await expect(dialog).toBeVisible();
     const box = await dialog.boundingBox();
     expect(box && box.x >= -1 && box.x + box.width <= 376, "the dialog is wider than the screen").toBeTruthy();
-    await dialog.getByRole("button", { name: "Add lead" }).scrollIntoViewIfNeeded();
-    await expect(dialog.getByRole("button", { name: "Add lead" })).toBeInViewport();
+    await dialog.getByRole("button", { name: ui.addLead, exact: true }).scrollIntoViewIfNeeded();
+    await expect(dialog.getByRole("button", { name: ui.addLead, exact: true })).toBeInViewport();
     await expectNoHorizontalOverflow(page);
   });
 });
@@ -58,17 +58,17 @@ test.describe("phone navigation", () => {
 test.describe("who sees the company settings", () => {
   test.describe("admin", () => {
     test.use({ storageState: authState("admin") });
-    test("the Company card is shown", async ({ page }) => {
+    test("the Company card is shown", async ({ page, ui }) => {
       await open(page, "/settings");
-      await expect(page.getByRole("heading", { name: "Company" })).toBeVisible();
+      await expect(page.getByRole("heading", { name: ui.companyCard })).toBeVisible();
     });
   });
   for (const role of ["manager", "sales"] as const) {
     test.describe(role, () => {
       test.use({ storageState: authState(role) });
-      test("the Company card is hidden", async ({ page }) => {
+      test("the Company card is hidden", async ({ page, ui }) => {
         await open(page, "/settings");
-        await expect(page.getByRole("heading", { name: "Company" })).toHaveCount(0);
+        await expect(page.getByRole("heading", { name: ui.companyCard })).toHaveCount(0);
       });
     });
   }

@@ -17,5 +17,10 @@ export default defineConfig({
     trace: "retain-on-failure",
     screenshot: "only-on-failure",
   },
-  projects: [{ name: "chromium", use: { browserName: "chromium" } }],
+  projects: [
+    // the product's own suite, against the normal production build
+    { name: "chromium", use: { browserName: "chromium" }, testIgnore: /pseudo\.spec\.ts$/ },
+    // the pseudo-locale layout tests, against the separate test build made with I18N_PSEUDO=1 (e2e/stack.mjs starts it; E2E_BASE_URL then points to it)
+    { name: "pseudo", use: { browserName: "chromium" }, testMatch: /pseudo\.spec\.ts$/ },
+  ],
 });
